@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import json
 import logging
 import re
+from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor, wait
 from queue import Queue
 from threading import Lock
@@ -10,6 +11,10 @@ from typing import List, Set
 import requests
 from bs4 import BeautifulSoup
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
 @contextmanager
 def SessionPool(max_sessions):
@@ -57,12 +62,13 @@ class IMDbCrawler:
         """
         # TODO
         self.crawling_threshold = crawling_threshold
-        self.not_crawled: Queue[str] = None
+        self.not_crawled: Queue[str] = Queue()
         self.crawled: List[dict] = []
         self.crawled_lock = Lock()
         self.added_ids: Set[str] = set()
         self.added_ids_lock = Lock()
         self.session_pool: Queue[requests.Session] = None
+        self.current_movie: ContextVar[str] = ContextVar("current_movie")
 
     @staticmethod
     def get_id_from_URL(URL: str):
@@ -131,6 +137,7 @@ class IMDbCrawler:
         requests.Response
             The response of the get request
         """
+        # return requests.get(URL, headers=self.headers)
         try:
             session = self.session_pool.get()
             return session.get(URL, headers=self.headers)
@@ -154,8 +161,6 @@ class IMDbCrawler:
             with open("temp.html", "r") as f:
                 return BeautifulSoup(f.read(), features="html.parser")
 
-        if session is None:
-            session = self.default_session
         resp = self.get(URL)
         if resp.status_code != 200:
             logging.error(f"Failed to get {URL}. status={resp.status_code}")
@@ -170,10 +175,10 @@ class IMDbCrawler:
         soup = self.crawl(self.top_250_URL)
         list_tag = soup.find("div", {"data-testid": "chart-layout-main-column"})
         top250 = list_tag.find_all("a", class_="ipc-title-link-wrapper")
-        for tag in top250:
+        for tag in top250[:10]: # NOTE: for testing
             href = tag.attrs["href"]
             id = self.get_id_from_URL(href)
-            self.not_crawled.put(id)
+            self.add_to_crawling_queue(id)
 
     def get_imdb_instance(self):
         return {
@@ -223,6 +228,20 @@ class IMDbCrawler:
                         
             wait(futures)
 
+    def add_to_crawling_queue(self, id):
+        """
+        Add the id to the crawling queue
+
+        Parameters
+        ----------
+        id: str
+            The id of the movie
+        """
+        with self.added_ids_lock:
+            if id not in self.added_ids:
+                self.not_crawled.put(id)
+                self.added_ids.add(id)
+
     def crawl_page_info(self, id):
         """
         Main Logic of the crawler. It crawls the page and extracts the information of the movie.
@@ -233,10 +252,18 @@ class IMDbCrawler:
         id: str
             The id of the movie
         """
-        print("new iteration", URL)
+        self.current_movie.set(id)
+        logging.info(f"Started crawling {id}")
+        url = self.get_movie_URL_from_id(id)
+        movie = self.get_imdb_instance()
+        soup = self.crawl(url)
+        if soup is None:
+            logging.error(f"Failed to crawl {url}")
+            return
         
-        # TODO
-        pass
+        self.extract_movie_info(soup, movie, url)
+        for related_id in movie["related_links"]:
+            self.add_to_crawling_queue(related_id)
 
     def extract_movie_info(self, soup, movie, URL):
         """
@@ -252,7 +279,7 @@ class IMDbCrawler:
             The URL of the site
         """
         # TODO
-        movie["title"] = None
+        movie["title"] = self.get_title(soup)
         movie["first_page_summary"] = None
         movie["release_year"] = None
         movie["mpaa"] = None
@@ -269,6 +296,7 @@ class IMDbCrawler:
         movie["summaries"] = None
         movie["synopsis"] = None
         movie["reviews"] = None
+        logging.info(f"Finished crawling {movie['title']}")
 
     def get_summary_link(url):
         """
@@ -305,7 +333,7 @@ class IMDbCrawler:
         except:
             print("failed to get review link")
 
-    def get_title(soup):
+    def get_title(self, soup: BeautifulSoup) -> str:
         """
         Get the title of the movie from the soup
 
@@ -320,10 +348,10 @@ class IMDbCrawler:
 
         """
         try:
-            # TODO
-            pass
+            title_tag = soup.find("span", {"class": "hero__primary-text"})
+            return title_tag.text
         except:
-            print("failed to get title")
+            logging.error(f"failed to get title of movie {self.current_movie.get()}")
 
     def get_first_page_summary(soup):
         """
@@ -401,8 +429,7 @@ class IMDbCrawler:
         except:
             print("failed to get writers")
 
-    @staticmethod
-    def get_related_links(soup):
+    def get_related_links(self, soup):
         """
         Get the related links of the movie from the More like this section of the page from the soup
 
@@ -416,8 +443,10 @@ class IMDbCrawler:
             The related links of the movie
         """
         try:
-            # TODO
-            pass
+            # <section data-testid="MoreLikeThis" cel_widget_id="StaticFeature_MoreLikeThis" class="ipc-page-section ipc-page-section--base celwidget" data-csa-c-id="le5e9e-7ks1kr-eiyvct-1lsaqd" data-cel-widget="StaticFeature_MoreLikeThis">
+            tag_related = soup.find("section", {"data-testid": "MoreLikeThis"})
+            poster_cards = tag_related.find_all("div", class_="ipc-poster-card", role="group")
+            return [self.get_id_from_URL(card.find("a").attrs["href"]) for card in poster_cards]
         except:
             print("failed to get related links")
 
@@ -643,5 +672,7 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    imdb_crawler = IMDbCrawler(crawling_threshold=5)
-    imdb_crawler.extract_top_250()
+    imdb_crawler = IMDbCrawler(crawling_threshold=50)
+    # imdb_crawler.extract_top_250()
+    # imdb_crawler.crawl_page_info("tt0050083")
+    imdb_crawler.start_crawling()
