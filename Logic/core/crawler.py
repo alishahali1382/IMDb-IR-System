@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 import json
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, wait
 from queue import Queue
@@ -7,6 +9,19 @@ from typing import List, Set
 
 import requests
 from bs4 import BeautifulSoup
+
+
+@contextmanager
+def SessionPool(max_sessions):
+    session_queue = Queue(maxsize=max_sessions)
+    for _ in range(max_sessions):
+        session_queue.put(requests.Session())
+
+    yield session_queue
+
+    while not session_queue.empty():
+        session = session_queue.get()
+        session.close()
 
 
 class IMDbCrawler:
@@ -47,9 +62,10 @@ class IMDbCrawler:
         self.crawled_lock = Lock()
         self.added_ids: Set[str] = set()
         self.added_ids_lock = Lock()
-        self.default_session = requests.Session()
+        self.session_pool: Queue[requests.Session] = None
 
-    def get_id_from_URL(self, URL: str):
+    @staticmethod
+    def get_id_from_URL(URL: str):
         """
         Get the id from the URL of the site. The id is what comes exactly after title.
         for example the id for the movie https://www.imdb.com/title/tt0111161/?ref_=chttp_t_1 is tt0111161.
@@ -64,6 +80,23 @@ class IMDbCrawler:
             The id of the site
         """
         return re.match(r"/title/(.*?)/", URL).group(1)
+
+    @staticmethod
+    def get_movie_URL_from_id(id: str):
+        """
+        Get the URL of the movie from the id. The URL is what comes exactly after title.
+        for example the URL for the movie tt0111161 is https://www.imdb.com/title/tt0111161/?ref_=chttp_t_1.
+
+        Parameters
+        ----------
+        id: str
+            The id of the site
+        Returns
+        ----------
+        str
+            The URL of the site
+        """
+        return f"https://www.imdb.com/title/{id}/?ref_=chttp_t_1"
 
     def write_to_file_as_json(self):
         """
@@ -85,9 +118,28 @@ class IMDbCrawler:
 
         self.added_ids = None
 
-    def crawl(self, URL: str, session: requests.Session = None) -> BeautifulSoup:
+    def get(self, URL: str) -> requests.Response:
         """
-        Make a get request to the URL and return the response
+        Make a get request to the URL through session pool and return the response
+
+        Parameters
+        ----------
+        URL: str
+            The URL of the site
+        Returns
+        ----------
+        requests.Response
+            The response of the get request
+        """
+        try:
+            session = self.session_pool.get()
+            return session.get(URL, headers=self.headers)
+        finally:
+            self.session_pool.put(session)
+
+    def crawl(self, URL: str) -> BeautifulSoup:
+        """
+        Make a get request to the URL and return the soup
 
         Parameters
         ----------
@@ -98,15 +150,15 @@ class IMDbCrawler:
         bs4.BeautifulSoup
             The parsed content of the page
         """
-        # if URL == self.top_250_URL:
-        #     with open("temp.html", "r") as f:
-        #         return BeautifulSoup(f.read(), features="html.parser")
+        if URL == self.top_250_URL:
+            with open("temp.html", "r") as f:
+                return BeautifulSoup(f.read(), features="html.parser")
 
         if session is None:
             session = self.default_session
-        resp = session.get(URL, headers=self.headers)
+        resp = self.get(URL)
         if resp.status_code != 200:
-            print(f"Failed to get {URL}.  status={resp.status_code}")
+            logging.error(f"Failed to get {URL}. status={resp.status_code}")
             return None
         soup = BeautifulSoup(resp.content, features="html.parser")
         return soup
@@ -148,55 +200,52 @@ class IMDbCrawler:
     def start_crawling(self):
         """
         Start crawling the movies until the crawling threshold is reached.
-        TODO:
-            replace WHILE_LOOP_CONSTRAINTS with the proper constraints for the while loop.
-            replace NEW_URL with the new URL to crawl.
-            replace THERE_IS_NOTHING_TO_CRAWL with the condition to check if there is nothing to crawl.
-            delete help variables.
 
         ThreadPoolExecutor is used to make the crawler faster by using multiple threads to crawl the pages.
         You are free to use it or not. If used, not to forget safe access to the shared resources.
         """
+        with SessionPool(20) as self.session_pool:
+            self.extract_top_250()
+            futures = []
+            crawled_counter = 0
 
-        # help variables
-        WHILE_LOOP_CONSTRAINTS = None
-        NEW_URL = None
-        THERE_IS_NOTHING_TO_CRAWL = None
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                while crawled_counter < self.crawling_threshold:
+                    if self.not_crawled.empty():
+                        if len(futures) == 0:
+                            break
+                        wait(futures)
+                        futures = []
+                    else:
+                        id = self.not_crawled.get()
+                        futures.append(executor.submit(self.crawl_page_info, id))
+                        crawled_counter += 1
+                        
+            wait(futures)
 
-        self.extract_top_250()
-        futures = []
-        crawled_counter = 0
-
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            while WHILE_LOOP_CONSTRAINTS:
-                URL = NEW_URL
-                futures.append(executor.submit(self.crawl_page_info, URL))
-                if THERE_IS_NOTHING_TO_CRAWL:
-                    wait(futures)
-                    futures = []
-
-    def crawl_page_info(self, URL):
+    def crawl_page_info(self, id):
         """
         Main Logic of the crawler. It crawls the page and extracts the information of the movie.
         Use related links of a movie to crawl more movies.
 
         Parameters
         ----------
-        URL: str
-            The URL of the site
+        id: str
+            The id of the movie
         """
-        print("new iteration")
+        print("new iteration", URL)
+        
         # TODO
         pass
 
-    def extract_movie_info(self, res, movie, URL):
+    def extract_movie_info(self, soup, movie, URL):
         """
         Extract the information of the movie from the response and save it in the movie instance.
 
         Parameters
         ----------
-        res: requests.models.Response
-            The response of the get request
+        soup: bs4.BeautifulSoup
+            The parsed response of the get request
         movie: dict
             The instance of the movie
         URL: str
@@ -212,7 +261,7 @@ class IMDbCrawler:
         movie["directors"] = None
         movie["writers"] = None
         movie["stars"] = None
-        movie["related_links"] = None
+        movie["related_links"] = self.get_related_links(soup)
         movie["genres"] = None
         movie["languages"] = None
         movie["countries_of_origin"] = None
@@ -352,6 +401,7 @@ class IMDbCrawler:
         except:
             print("failed to get writers")
 
+    @staticmethod
     def get_related_links(soup):
         """
         Get the related links of the movie from the More like this section of the page from the soup
