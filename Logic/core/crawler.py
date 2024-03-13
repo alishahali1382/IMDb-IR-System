@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor, wait
 from queue import Queue
 from threading import Lock
+import threading
 from typing import List, Optional, Set
 
 import requests
@@ -13,24 +14,25 @@ from bs4 import BeautifulSoup
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[%(asctime)s][%(levelname)s] %(message)s",
+    format="[{asctime}][{levelname}][{threadName:<23}] {message}",
+    style="{",
     handlers=[
         logging.FileHandler("IMDB_crawler.log"),
         logging.StreamHandler()
     ]
 )
 
-@contextmanager
-def SessionPool(max_sessions):
-    session_queue = Queue(maxsize=max_sessions)
-    for _ in range(max_sessions):
-        session_queue.put(requests.Session())
+# @contextmanager
+# def SessionPool(max_sessions):
+#     session_queue = Queue(maxsize=max_sessions)
+#     for _ in range(max_sessions):
+#         session_queue.put(requests.Session())
 
-    yield session_queue
+#     yield session_queue
 
-    while not session_queue.empty():
-        session = session_queue.get()
-        session.close()
+#     while not session_queue.empty():
+#         session = session_queue.get()
+#         session.close()
 
 
 class IMDbCrawler:
@@ -71,7 +73,8 @@ class IMDbCrawler:
         self.crawled_lock = Lock()
         self.added_ids: Set[str] = set()
         self.added_ids_lock = Lock()
-        self.session_pool: Queue[requests.Session] = None
+        # self.session_pool: Queue[requests.Session] = None
+        self.session: ContextVar[requests.Session] = ContextVar("session")
         self.current_movie: ContextVar[str] = ContextVar("current_movie")
 
     @staticmethod
@@ -141,12 +144,17 @@ class IMDbCrawler:
         requests.Response
             The response of the get request
         """
-        # return requests.get(URL, headers=self.headers)
-        try:
-            session = self.session_pool.get()
-            return session.get(URL, headers=self.headers, timeout=10)
-        finally:
-            self.session_pool.put(session)
+        session = self.session.get(None)
+        if session is None:
+            print(f"created a session for thread: {threading.current_thread().name}")
+            session = requests.Session()
+            self.session.set(session)
+        return session.get(URL, headers=self.headers, timeout=3)
+        # try:
+            # session = self.session_pool.get()
+            # return session.get(URL, headers=self.headers, timeout=10)
+        # finally:
+        #     self.session_pool.put(session)
 
     def crawl(self, URL: str) -> BeautifulSoup:
         """
@@ -162,8 +170,8 @@ class IMDbCrawler:
             The parsed content of the page
         """
         # if URL == self.top_250_URL:
-        #     with open("temp.html", "r") as f:
-        #         return BeautifulSoup(f.read(), features="html.parser")
+        with open("temp.html", "r") as f:
+            return BeautifulSoup(f.read(), features="html.parser")
 
         resp = self.get(URL)
         if resp.status_code != 200:
@@ -210,24 +218,25 @@ class IMDbCrawler:
         ThreadPoolExecutor is used to make the crawler faster by using multiple threads to crawl the pages.
         You are free to use it or not. If used, not to forget safe access to the shared resources.
         """
-        with SessionPool(max_workers) as self.session_pool:
-            self.extract_top_250()
-            futures = []
-            crawled_counter = 0
+        # with SessionPool(max_workers) as self.session_pool:
+        self.extract_top_250()
+        futures = []
+        crawled_counter = 0
 
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                while crawled_counter < self.crawling_threshold:
-                    if self.not_crawled.empty():
-                        if len(futures) == 0:
-                            break
-                        wait(futures)
-                        futures = []
-                    else:
-                        id = self.not_crawled.get()
-                        futures.append(executor.submit(self.crawl_page_info, id))
-                        crawled_counter += 1
-                        
-            wait(futures)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # executor.map(self.crawl_page_info, self.not_crawled.queue)
+            while crawled_counter < self.crawling_threshold:
+                if self.not_crawled.empty():
+                    if len(futures) == 0:
+                        break
+                    wait(futures)
+                    futures = []
+                else:
+                    id = self.not_crawled.get()
+                    futures.append(executor.submit(self.crawl_page_info, id))
+                    crawled_counter += 1
+                    
+        wait(futures)
 
     def add_to_crawling_queue(self, ids):
         """
@@ -283,10 +292,10 @@ class IMDbCrawler:
         URL: str
             The URL of the site
         """
-        # TODO
-        movie["title"] = self.get_title(soup)
-        movie["first_page_summary"] = self.get_first_page_summary(soup)
-        movie["release_year"] = None
+        json_data = json.loads(soup.find("script", type="application/ld+json").text)
+        movie["title"] = self.get_title(json_data)
+        movie["first_page_summary"] = self.get_first_page_summary(json_data)
+        movie["release_year"] = self.get_release_year(json_data)
         movie["mpaa"] = None
         movie["budget"] = None
         movie["gross_worldwide"] = None
@@ -332,7 +341,7 @@ class IMDbCrawler:
         """
         return url + "reviews/"
 
-    def get_title(self, soup: BeautifulSoup) -> Optional[str]:
+    def get_title(self, json_data: dict) -> Optional[str]:
         """
         Get the title of the movie from the soup
 
@@ -347,12 +356,11 @@ class IMDbCrawler:
 
         """
         try:
-            title_tag = soup.find("span", {"class": "hero__primary-text"})
-            return title_tag.text
+            return json_data["name"]
         except:
             logging.error(f"failed to get title of movie {self.current_movie.get()}")
 
-    def get_first_page_summary(self, soup: BeautifulSoup) -> Optional[str]:
+    def get_first_page_summary(self, json_data: dict) -> Optional[str]:
         """
         Get the first page summary of the movie from the soup
 
@@ -366,8 +374,7 @@ class IMDbCrawler:
             The first page summary of the movie
         """
         try:
-            summary_element = soup.find('span', {'data-testid': 'plot-l', 'role': 'presentation'})
-            return summary_element.text.strip()
+            return json_data["description"]
         except:
             logging.error(f"failed to get first page summary of movie {self.current_movie.get()}")
 
@@ -563,7 +570,7 @@ class IMDbCrawler:
         except:
             print("failed to get mpaa")
 
-    def get_release_year(soup):
+    def get_release_year(self, json_data: dict) -> Optional[str]:
         """
         Get the release year of the movie from the soup
 
@@ -577,10 +584,10 @@ class IMDbCrawler:
             The release year of the movie
         """
         try:
-            # TODO
-            pass
+            return json_data["datePublished"]
+            # return tag.text
         except:
-            print("failed to get release year")
+            logging.error(f"failed to get release year of movie {self.current_movie.get()}")
 
     def get_languages(soup):
         """
@@ -666,13 +673,13 @@ def main():
     imdb_crawler.start_crawling(max_workers=20)
     print("done")
     # imdb_crawler.write_to_file_as_json()
-    cursor.close()
-    conn.close()
-
 
 if __name__ == "__main__":
-    main()
-    # imdb_crawler = IMDbCrawler(crawling_threshold=50)
-    # imdb_crawler.extract_top_250()
+    # main()
+    imdb_crawler = IMDbCrawler(crawling_threshold=50)
+    imdb_crawler.crawl_page_info("tt0120737")
+    from pprint import pprint
+    pprint(imdb_crawler.crawled)
+    print(imdb_crawler.crawled[0]["title"])
     # imdb_crawler.crawl_page_info("tt0050083")
     # imdb_crawler.start_crawling()
