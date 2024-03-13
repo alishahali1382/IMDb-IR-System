@@ -296,17 +296,17 @@ class IMDbCrawler:
         movie["title"] = self.get_title(json_data)
         movie["first_page_summary"] = self.get_first_page_summary(json_data)
         movie["release_year"] = self.get_release_year(json_data)
-        movie["mpaa"] = None
-        movie["budget"] = None
-        movie["gross_worldwide"] = None
-        movie["directors"] = None
-        movie["writers"] = None
-        movie["stars"] = None
+        movie["mpaa"] = self.get_mpaa(json_data)
+        movie["budget"] = self.get_budget(soup)
+        movie["gross_worldwide"] = self.get_gross_worldwide(soup)
+        movie["directors"] = self.get_director(json_data)
+        movie["writers"] = self.get_writers(json_data)
+        movie["stars"] = self.get_stars(soup)
         movie["related_links"] = self.get_related_links(soup)
-        movie["genres"] = None
-        movie["languages"] = None
-        movie["countries_of_origin"] = None
-        movie["rating"] = None
+        movie["genres"] = self.get_genres(json_data)
+        movie["languages"] = self.get_languages(soup)
+        movie["countries_of_origin"] = self.get_countries_of_origin(soup)
+        movie["rating"] = self.get_rating(json_data)
         movie["summaries"] = None
         movie["synopsis"] = None
         movie["reviews"] = None
@@ -378,64 +378,62 @@ class IMDbCrawler:
         except:
             logging.error(f"failed to get first page summary of movie {self.current_movie.get()}")
 
-    def get_director(soup):
+    def get_director(self, json_data: dict) -> Optional[List[str]]:
         """
         Get the directors of the movie from the soup
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         List[str]
             The directors of the movie
         """
         try:
-            # TODO
-            pass
+            return [person["name"] for person in json_data["director"]]
         except:
-            print("failed to get director")
+            logging.error(f"failed to get directors of movie {self.current_movie.get()}")
 
-    def get_stars(soup):
+    def get_stars(self, soup: BeautifulSoup) -> Optional[List[str]]:
         """
         Get the stars of the movie from the soup
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         List[str]
             The stars of the movie
         """
         try:
-            # TODO
-            pass
+            tags = soup.find_all("a", {"data-testid": "title-cast-item__actor"})
+            return [tag.text for tag in tags]
         except:
-            print("failed to get stars")
+            logging.error(f"failed to get stars of movie {self.current_movie.get()}")
 
-    def get_writers(soup):
+    def get_writers(self, json_data: dict) -> Optional[List[str]]:
         """
         Get the writers of the movie from the soup
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         List[str]
             The writers of the movie
         """
         try:
-            # TODO
-            pass
+            return [person["name"] for person in json_data["creator"] if person["@type"] == "Person"]
         except:
-            print("failed to get writers")
+            logging.error(f"failed to get writers of movie {self.current_movie.get()}")        
 
-    def get_related_links(self, soup):
+    def get_related_links(self, soup: BeautifulSoup) -> Optional[List[str]]:
         """
         Get the related links of the movie from the More like this section of the page from the soup
 
@@ -453,7 +451,7 @@ class IMDbCrawler:
             poster_cards = tag_related.find_all("div", class_="ipc-poster-card", role="group")
             return [self.get_id_from_URL(card.find("a").attrs["href"]) for card in poster_cards]
         except:
-            print("failed to get related links")
+            logging.error(f"failed to get related links of movie {self.current_movie.get()}")
 
     def get_summary(soup):
         """
@@ -513,26 +511,25 @@ class IMDbCrawler:
         except:
             print("failed to get reviews")
 
-    def get_genres(soup):
+    def get_genres(self, json_data: dict) -> Optional[List[str]]:
         """
         Get the genres of the movie from the soup
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         List[str]
             The genres of the movie
         """
         try:
-            # TODO
-            pass
+            return json_data["genre"]
         except:
-            print("Failed to get generes")
+            logging.error(f"failed to get genres of movie {self.current_movie.get()}")
 
-    def get_rating(soup):
+    def get_rating(self, json_data: dict) -> Optional[str]:
         """
         Get the rating of the movie from the soup
 
@@ -546,29 +543,27 @@ class IMDbCrawler:
             The rating of the movie
         """
         try:
-            # TODO
-            pass
+            return json_data["aggregateRating"]["ratingValue"]
         except:
-            print("failed to get rating")
+            logging.error(f"failed to get rating of movie {self.current_movie.get()}")
 
-    def get_mpaa(soup):
+    def get_mpaa(self, json_data: dict) -> Optional[str]:
         """
         Get the MPAA of the movie from the soup
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         str
             The MPAA of the movie
         """
         try:
-            # TODO
-            pass
+            return json_data["contentRating"]
         except:
-            print("failed to get mpaa")
+            logging.error(f"failed to get MPAA of movie {self.current_movie.get()}")
 
     def get_release_year(self, json_data: dict) -> Optional[str]:
         """
@@ -589,7 +584,7 @@ class IMDbCrawler:
         except:
             logging.error(f"failed to get release year of movie {self.current_movie.get()}")
 
-    def get_languages(soup):
+    def get_languages(self, soup: BeautifulSoup) -> Optional[List[str]]:
         """
         Get the languages of the movie from the soup
 
@@ -603,13 +598,17 @@ class IMDbCrawler:
             The languages of the movie
         """
         try:
-            # TODO
-            pass
+            list_tag = soup.find("li", {"data-testid": "title-details-languages", "role": "presentation"})
+            tags = list_tag.find_all("a", class_="ipc-metadata-list-item__list-content-item--link")
+            return [tag.text for tag in tags]
         except:
-            print("failed to get languages")
-            return None
+            logging.error(f"failed to get languages of movie {self.current_movie.get()}")
 
-    def get_countries_of_origin(soup):
+    @staticmethod
+    def remove_new_lines(text: str) -> str:
+        return ' '.join(word for word in text.replace('\n', ' ').split(' ') if word)
+
+    def get_countries_of_origin(self, soup: BeautifulSoup) -> Optional[List[str]]:
         """
         Get the countries of origin of the movie from the soup
 
@@ -623,12 +622,13 @@ class IMDbCrawler:
             The countries of origin of the movie
         """
         try:
-            # TODO
-            pass
+            list_tag = soup.find("li", {"data-testid": "title-details-origin", "role": "presentation"})
+            tags = list_tag.find_all("a", class_="ipc-metadata-list-item__list-content-item--link")
+            return [self.remove_new_lines(tag.text) for tag in tags]
         except:
-            print("failed to get countries of origin")
+            logging.error(f"failed to get countries of origin of movie {self.current_movie.get()}")
 
-    def get_budget(soup):
+    def get_budget(self, soup: BeautifulSoup) -> Optional[str]:
         """
         Get the budget of the movie from box office section of the soup
 
@@ -642,12 +642,13 @@ class IMDbCrawler:
             The budget of the movie
         """
         try:
-            # TODO
-            pass
+            tag = soup.find("li", {"data-testid": "title-boxoffice-budget", "role": "presentation"})
+            tag = tag.find("div", class_="ipc-metadata-list-item__content-container")            
+            return tag.text.strip()
         except:
-            print("failed to get budget")
+            logging.error(f"failed to get budget of movie {self.current_movie.get()}")
 
-    def get_gross_worldwide(soup):
+    def get_gross_worldwide(self, soup: BeautifulSoup) -> Optional[str]:
         """
         Get the gross worldwide of the movie from box office section of the soup
 
@@ -661,10 +662,12 @@ class IMDbCrawler:
             The gross worldwide of the movie
         """
         try:
-            # TODO
-            pass
+            tag = soup.find("li", {"data-testid": "title-boxoffice-cumulativeworldwidegross", "role": "presentation"})
+            tag = tag.find("div", class_="ipc-metadata-list-item__content-container")
+            tag = tag.find("span", class_="ipc-metadata-list-item__list-content-item")
+            return tag.text.strip()
         except:
-            print("failed to get gross worldwide")
+            logging.error(f"failed to get gross worldwide of movie {self.current_movie.get()}")
 
 
 def main():
@@ -680,6 +683,6 @@ if __name__ == "__main__":
     imdb_crawler.crawl_page_info("tt0120737")
     from pprint import pprint
     pprint(imdb_crawler.crawled)
-    print(imdb_crawler.crawled[0]["title"])
+    # print(imdb_crawler.crawled[0]["title"])
     # imdb_crawler.crawl_page_info("tt0050083")
     # imdb_crawler.start_crawling()
