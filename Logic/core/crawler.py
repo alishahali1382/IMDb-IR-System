@@ -24,18 +24,19 @@ dictConfig({
     },
     "handlers": {
         "file": {
-            "class": logging.FileHandler,
+            "class": "logging.FileHandler",
             "filename": "crawler.log",
             "formatter": "detailed"
         },
         "file_error": {
-            "class": logging.FileHandler,
+            "class": "logging.FileHandler",
             "filename": "crawler_error.log",
             "formatter": "detailed",
             "level": "ERROR"
         },
         "console": {
-            "class": logging.StreamHandler,
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
             "formatter": "detailed"
         }
     },
@@ -237,7 +238,7 @@ class IMDbCrawler:
             
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             while crawled_counter < self.crawling_threshold:
-                if write_to_file and len(self.crawled) % file_batch_size == 0:
+                if write_to_file and crawled_counter % file_batch_size == 0 and crawled_counter > 0:
                     write_to_file_and_clear()
 
                 if self.not_crawled.empty():
