@@ -159,11 +159,6 @@ class IMDbCrawler:
             session = requests.Session()
             self.session.set(session)
         return session.get(URL, headers=self.headers, timeout=3)
-        # try:
-            # session = self.session_pool.get()
-            # return session.get(URL, headers=self.headers, timeout=10)
-        # finally:
-        #     self.session_pool.put(session)
 
     def crawl(self, URL: str) -> BeautifulSoup:
         """
@@ -223,30 +218,40 @@ class IMDbCrawler:
         ThreadPoolExecutor is used to make the crawler faster by using multiple threads to crawl the pages.
         You are free to use it or not. If used, not to forget safe access to the shared resources.
         """
-        # with SessionPool(max_workers) as self.session_pool:
         self.extract_top_250()
         futures = []
         crawled_counter = 0
         files_counter = 0
 
+        def wait_for_jobs():
+            wait(futures)
+            futures.clear()
+        
+        def write_to_file_and_clear():
+            nonlocal files_counter
+            files_counter += 1
+            wait_for_jobs()
+            self.write_to_file_as_json(f"IMDB_crawled_{files_counter:02d}.json")
+            self.crawled.clear()
+            gc.collect()
+            
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # executor.map(self.crawl_page_info, self.not_crawled.queue)
             while crawled_counter < self.crawling_threshold:
                 if write_to_file and len(self.crawled) % file_batch_size == 0:
-                    files_counter += 1
-                    self.write_to_file_as_json(f"IMDB_crawled_{files_counter:02d}.json")
-                    
+                    write_to_file_and_clear()
+
                 if self.not_crawled.empty():
                     if len(futures) == 0:
                         break
-                    wait(futures)
-                    futures = []
+                    wait_for_jobs()
                 else:
                     id = self.not_crawled.get()
                     futures.append(executor.submit(self.crawl_page_info, id))
                     crawled_counter += 1
-                    
-        wait(futures)
+
+        wait_for_jobs()
+        if write_to_file and len(self.crawled) > 0:
+            write_to_file_and_clear()
 
     def add_to_crawling_queue(self, ids):
         """
@@ -470,8 +475,6 @@ class IMDbCrawler:
 
     @staticmethod
     def remove_html_suffix_from_text(text: str) -> str:
-        # return re.sub(r'\u003cspan.+', '', text)
-        # re.sub(r'<[^>]+>', '', dirty_text)
         while True:
             nex = html.unescape(text)
             nex = re.sub(r'<[^>]+>', '', nex)
