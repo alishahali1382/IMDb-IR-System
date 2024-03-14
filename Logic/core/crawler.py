@@ -13,16 +13,37 @@ from logging.config import dictConfig
 import requests
 from bs4 import BeautifulSoup
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[{asctime}][{levelname}][{threadName:<23}] {message}",
-    style="{",
-    handlers=[
-        logging.FileHandler("IMDB_crawler.log"),
-        logging.StreamHandler()
-    ]
-)
-
+dictConfig({
+    "version": 1,
+    "disable_existing_loggers": True,
+    "formatters": {
+        "detailed": {
+            "format": "[{asctime}][{levelname}][{threadName:<23}] {message}",
+            "style": "{"
+        }
+    },
+    "handlers": {
+        "file": {
+            "class": logging.FileHandler,
+            "filename": "crawler.log",
+            "formatter": "detailed"
+        },
+        "file_error": {
+            "class": logging.FileHandler,
+            "filename": "crawler_error.log",
+            "formatter": "detailed",
+            "level": "ERROR"
+        },
+        "console": {
+            "class": logging.StreamHandler,
+            "formatter": "detailed"
+        }
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["file", "console", "file_error"]
+    }   
+})
 
 
 class IMDbCrawler:
