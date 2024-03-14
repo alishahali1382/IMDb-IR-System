@@ -1,13 +1,14 @@
-from contextlib import contextmanager
 import json
+import html
 import logging
 import re
 from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor, wait
 from queue import Queue
 from threading import Lock
-import threading
+import gc
 from typing import List, Optional, Set
+from logging.config import dictConfig
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,17 +23,6 @@ logging.basicConfig(
     ]
 )
 
-# @contextmanager
-# def SessionPool(max_sessions):
-#     session_queue = Queue(maxsize=max_sessions)
-#     for _ in range(max_sessions):
-#         session_queue.put(requests.Session())
-
-#     yield session_queue
-
-#     while not session_queue.empty():
-#         session = session_queue.get()
-#         session.close()
 
 
 class IMDbCrawler:
@@ -66,14 +56,12 @@ class IMDbCrawler:
         crawling_threshold: int
             The number of pages to crawl
         """
-        # TODO
         self.crawling_threshold = crawling_threshold
         self.not_crawled: Queue[str] = Queue()
         self.crawled: List[dict] = []
         self.crawled_lock = Lock()
         self.added_ids: Set[str] = set()
         self.added_ids_lock = Lock()
-        # self.session_pool: Queue[requests.Session] = None
         self.session: ContextVar[requests.Session] = ContextVar("session")
         self.current_movie: ContextVar[str] = ContextVar("current_movie")
 
@@ -111,11 +99,11 @@ class IMDbCrawler:
         """
         return f"https://www.imdb.com/title/{id}/?ref_=chttp_t_1"
 
-    def write_to_file_as_json(self):
+    def write_to_file_as_json(self, filename: str):
         """
         Save the crawled files into json
         """
-        with open("IMDB_crawled.json", "w") as f:
+        with open(filename, "w") as f:
             json.dump(self.crawled, f)
 
     def read_from_file_as_json(self):
@@ -146,7 +134,7 @@ class IMDbCrawler:
         """
         session = self.session.get(None)
         if session is None:
-            print(f"created a session for thread: {threading.current_thread().name}")
+            logging.info("created a session")
             session = requests.Session()
             self.session.set(session)
         return session.get(URL, headers=self.headers, timeout=3)
@@ -169,10 +157,6 @@ class IMDbCrawler:
         bs4.BeautifulSoup
             The parsed content of the page
         """
-        # if URL == self.top_250_URL:
-        with open("temp.html", "r") as f:
-            return BeautifulSoup(f.read(), features="html.parser")
-
         resp = self.get(URL)
         if resp.status_code != 200:
             logging.error(f"Failed to get {URL}. status={resp.status_code}")
@@ -211,7 +195,7 @@ class IMDbCrawler:
             "reviews": None,  # List[List[str]]
         }
 
-    def start_crawling(self, max_workers=20):
+    def start_crawling(self, max_workers=10, file_batch_size=1000, write_to_file=True):
         """
         Start crawling the movies until the crawling threshold is reached.
 
@@ -222,10 +206,15 @@ class IMDbCrawler:
         self.extract_top_250()
         futures = []
         crawled_counter = 0
+        files_counter = 0
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # executor.map(self.crawl_page_info, self.not_crawled.queue)
             while crawled_counter < self.crawling_threshold:
+                if write_to_file and len(self.crawled) % file_batch_size == 0:
+                    files_counter += 1
+                    self.write_to_file_as_json(f"IMDB_crawled_{files_counter:02d}.json")
+                    
                 if self.not_crawled.empty():
                     if len(futures) == 0:
                         break
@@ -269,17 +258,16 @@ class IMDbCrawler:
         # logging.info(f"Started crawling {id}")
         url = self.get_movie_URL_from_id(id)
         movie = self.get_imdb_instance()
-        movie["id"] = id
         soup = self.crawl(url)
         if soup is None:
             logging.error(f"Failed to crawl {url}")
             return
         
-        self.extract_movie_info(soup, movie, url)
+        self.extract_movie_info(soup, movie, id)
         self.add_to_crawled(movie)
-        self.add_to_crawling_queue(movie["related_links"])
+        # self.add_to_crawling_queue(movie["related_links"])
 
-    def extract_movie_info(self, soup, movie, URL):
+    def extract_movie_info(self, soup, movie, id):
         """
         Extract the information of the movie from the response and save it in the movie instance.
 
@@ -293,6 +281,7 @@ class IMDbCrawler:
             The URL of the site
         """
         json_data = json.loads(soup.find("script", type="application/ld+json").text)
+        movie["id"] = id
         movie["title"] = self.get_title(json_data)
         movie["first_page_summary"] = self.get_first_page_summary(json_data)
         movie["release_year"] = self.get_release_year(json_data)
@@ -307,13 +296,18 @@ class IMDbCrawler:
         movie["languages"] = self.get_languages(soup)
         movie["countries_of_origin"] = self.get_countries_of_origin(soup)
         movie["rating"] = self.get_rating(json_data)
-        movie["summaries"] = None
-        movie["synopsis"] = None
-        movie["reviews"] = None
+
+        summary_soup = self.crawl(self.get_summary_link(id))
+        plotsummary_json_data = json.loads(summary_soup.find("script", {"id": "__NEXT_DATA__", "type": "application/json"}).text)
+        movie["summaries"] = self.get_summary(plotsummary_json_data)
+        movie["synopsis"] = self.get_synopsis(plotsummary_json_data)
+
+        reviews_soup = self.crawl(self.get_review_link(id))
+        movie["reviews"] = self.get_reviews_with_scores(reviews_soup)
         logging.info(f"Finished crawling {movie['title']}")
 
     @staticmethod
-    def get_summary_link(url: str) -> str:
+    def get_summary_link(id: str) -> str:
         """
         Get the link to the summary page of the movie
         Example:
@@ -322,24 +316,24 @@ class IMDbCrawler:
 
         Parameters
         ----------
-        url: str
-            The URL of the site
+        id: str
+            The id of the site
         Returns
         ----------
         str
             The URL of the summary page
         """
-        return url + "plotsummary/"
+        return f"https://www.imdb.com/title/{id}/plotsummary/"
 
     @staticmethod
-    def get_review_link(url: str) -> str:
+    def get_review_link(id: str) -> str:
         """
         Get the link to the review page of the movie
         Example:
         https://www.imdb.com/title/tt0111161/ is the page
         https://www.imdb.com/title/tt0111161/reviews/ is the review page
         """
-        return url + "reviews/"
+        return f"https://www.imdb.com/title/{id}/reviews/"
 
     def get_title(self, json_data: dict) -> Optional[str]:
         """
@@ -453,45 +447,59 @@ class IMDbCrawler:
         except:
             logging.error(f"failed to get related links of movie {self.current_movie.get()}")
 
-    def get_summary(soup):
+    @staticmethod
+    def remove_html_suffix_from_text(text: str) -> str:
+        # return re.sub(r'\u003cspan.+', '', text)
+        # re.sub(r'<[^>]+>', '', dirty_text)
+        while True:
+            nex = html.unescape(text)
+            nex = re.sub(r'<[^>]+>', '', nex)
+            if nex == text:
+                break
+            text = nex
+        return text
+
+    def get_summary(self, json_data: dict) -> Optional[List[str]]:
         """
-        Get the summary of the movie from the soup
+        Get the summary of the movie from the parsed json
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         List[str]
             The summary of the movie
         """
         try:
-            # TODO
-            pass
+            for data in json_data['props']['pageProps']['contentData']['categories']:
+                if data['id'] == 'summaries':
+                    return [self.remove_html_suffix_from_text(item['htmlContent']) for item in data['section']['items']]
         except:
-            print("failed to get summary")
+            logging.error(f"failed to get summary of movie {self.current_movie.get()}")
 
-    def get_synopsis(soup):
+    def get_synopsis(self, json_data: dict) -> Optional[List[str]]:
         """
-        Get the synopsis of the movie from the soup
+        Get the synopsis of the movie from the parsed json
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         List[str]
             The synopsis of the movie
         """
         try:
-            # TODO
-            pass
+            for data in json_data['props']['pageProps']['contentData']['categories']:
+                if data['id'] == 'synopsis':
+                    return [self.remove_html_suffix_from_text(item['htmlContent']) for item in data['section']['items']]
         except:
-            print("failed to get synopsis")
+            logging.error(f"failed to get synopsis of movie {self.current_movie.get()}")
 
-    def get_reviews_with_scores(soup):
+    def get_reviews_with_scores(self, soup: BeautifulSoup) -> Optional[List[List[str]]]:
         """
         Get the reviews of the movie from the soup
         reviews structure: [[review,score]]
@@ -506,10 +514,19 @@ class IMDbCrawler:
             The reviews of the movie
         """
         try:
-            # TODO
-            pass
-        except:
-            print("failed to get reviews")
+            tags = soup.find("div", class_="lister-list").find_all("div", class_="review-container")
+            out = []
+            for tag in tags:
+                review = tag.find("div", class_="text show-more__control").text,
+                score_tag = tag.find("span", class_="rating-other-user-rating")
+                if score_tag is None:
+                    # TODO: ask for intended behavior in this case
+                    continue
+                score = score_tag.find("span").text
+                out.append([review, score])
+            return out
+        except Exception as e:
+            logging.error(f"failed to get reviews of movie {self.current_movie.get()}: {e}")
 
     def get_genres(self, json_data: dict) -> Optional[List[str]]:
         """
@@ -535,8 +552,8 @@ class IMDbCrawler:
 
         Parameters
         ----------
-        soup: BeautifulSoup
-            The soup of the page
+        json_data: dict
+            The json data of the page
         Returns
         ----------
         str
@@ -671,18 +688,17 @@ class IMDbCrawler:
 
 
 def main():
-    imdb_crawler = IMDbCrawler(crawling_threshold=10)
+    imdb_crawler = IMDbCrawler(crawling_threshold=10000)
     # imdb_crawler.read_from_file_as_json()
-    imdb_crawler.start_crawling(max_workers=20)
-    print("done")
-    # imdb_crawler.write_to_file_as_json()
+    imdb_crawler.start_crawling(max_workers=20, file_batch_size=1000, write_to_file=True)
 
 if __name__ == "__main__":
-    # main()
-    imdb_crawler = IMDbCrawler(crawling_threshold=50)
-    imdb_crawler.crawl_page_info("tt0120737")
-    from pprint import pprint
-    pprint(imdb_crawler.crawled)
-    # print(imdb_crawler.crawled[0]["title"])
-    # imdb_crawler.crawl_page_info("tt0050083")
-    # imdb_crawler.start_crawling()
+    main()
+    # imdb_crawler = IMDbCrawler(crawling_threshold=10)
+    # imdb_crawler.crawl_page_info("tt0110912")
+    # # from pprint import pprint
+    # # pprint(imdb_crawler.crawled[0]["summaries"])
+    # # print(imdb_crawler.crawled[0]["title"])
+    # # imdb_crawler.crawl_page_info("tt0050083")
+    # # imdb_crawler.start_crawling()
+    # imdb_crawler.write_to_file_as_json()
