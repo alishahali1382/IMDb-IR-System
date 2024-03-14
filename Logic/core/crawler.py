@@ -1,14 +1,14 @@
-import json
+import gc
 import html
+import json
 import logging
 import re
-from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor, wait
+from contextvars import ContextVar
+from logging.config import dictConfig
 from queue import Queue
 from threading import Lock
-import gc
 from typing import List, Optional, Set
-from logging.config import dictConfig
 
 import requests
 from bs4 import BeautifulSoup
