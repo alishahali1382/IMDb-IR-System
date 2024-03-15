@@ -2,11 +2,20 @@ import json
 from typing import List
 
 
+def type_check(obj, expected_type):
+    if not hasattr(expected_type, "__origin__"):
+        return isinstance(obj, expected_type)
+
+    assert expected_type.__origin__ == list, "only list type is supported"
+    inner_type = expected_type.__args__[0]
+    return isinstance(obj, list) and all(type_check(item, inner_type) for item in obj)
+
+
 def check_field_types(json_file_path, expected_fields):
     with open(json_file_path, "r") as file:
         data = json.load(file)
     # check len of the data
-    assert len(data) > 500, f"Expected at least 1000 movies, but got {len(data)}"
+    assert len(data) >= 1000, f"Expected at least 1000 movies, but got {len(data)}"
 
     # check data types
     for movie in data:
