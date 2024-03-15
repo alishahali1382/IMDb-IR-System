@@ -2,6 +2,7 @@ import gc
 import html
 import json
 import logging
+import random
 import re
 from concurrent.futures import ThreadPoolExecutor, wait
 from contextvars import ContextVar
@@ -85,6 +86,7 @@ class IMDbCrawler:
         self.added_ids_lock = Lock()
         self.session: ContextVar[requests.Session] = ContextVar("session")
         self.current_movie: ContextVar[str] = ContextVar("current_movie")
+        self.after_add_to_crawled = lambda : None
 
     @staticmethod
     def get_id_from_URL(URL: str):
@@ -154,7 +156,7 @@ class IMDbCrawler:
             The response of the get request
         """
         session = self.session.get(None)
-        if session is None:
+        if session is None or random.randint(1, 50) == 1:
             logging.info("created a session")
             session = requests.Session()
             self.session.set(session)
@@ -224,28 +226,29 @@ class IMDbCrawler:
         futures = []
         crawled_counter = 0
         files_counter = 0
-
+        total_written = 0
+        
         def wait_for_jobs():
             wait(futures)
             futures.clear()
 
         def write_to_file_and_clear():
-            nonlocal files_counter
-            files_counter += 1
-            wait_for_jobs()
-            self.write_to_file_as_json(f"IMDB_crawled_{files_counter:02d}.json")
-            self.crawled.clear()
-            gc.collect()
+            nonlocal files_counter, total_written
+            if len(self.crawled) % 100 == 0:
+                with open("crawled_count", "w") as f:
+                    f.write(f"{total_written + len(self.crawled)}\n")
+
+            if write_to_file and len(self.crawled) % file_batch_size == 0:
+                files_counter += 1
+                total_written += len(self.crawled)
+                self.write_to_file_as_json(f"IMDB_crawled_{files_counter:02d}.json")
+                self.crawled.clear()
+                gc.collect()
+        
+        self.after_add_to_crawled = write_to_file_and_clear
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             while crawled_counter < self.crawling_threshold:
-                if (
-                    write_to_file
-                    and crawled_counter % file_batch_size == 0
-                    and crawled_counter > 0
-                ):
-                    write_to_file_and_clear()
-
                 if self.not_crawled.empty():
                     if len(futures) == 0:
                         break
@@ -275,8 +278,9 @@ class IMDbCrawler:
         """
         with self.crawled_lock:
             self.crawled.append(movie)
+            self.after_add_to_crawled()
 
-    def crawl_page_info(self, id):
+    def crawl_page_info(self, id: str):
         """
         Main Logic of the crawler. It crawls the page and extracts the information of the movie.
         Use related links of a movie to crawl more movies.
@@ -297,7 +301,7 @@ class IMDbCrawler:
 
         self.extract_movie_info(soup, movie, id)
         self.add_to_crawled(movie)
-        # self.add_to_crawling_queue(movie["related_links"])
+        self.add_to_crawling_queue(movie["related_links"])
 
     def extract_movie_info(self, soup, movie, id):
         """
@@ -315,6 +319,7 @@ class IMDbCrawler:
         json_data = json.loads(soup.find("script", type="application/ld+json").text)
         movie["id"] = id
         movie["title"] = self.get_title(json_data)
+        self.current_movie.set(f"`{movie['title']}`")
         movie["first_page_summary"] = self.get_first_page_summary(json_data)
         movie["release_year"] = self.get_release_year(json_data)
         movie["mpaa"] = self.get_mpaa(json_data)
@@ -387,8 +392,8 @@ class IMDbCrawler:
         """
         try:
             return json_data["name"]
-        except:
-            logging.error(f"failed to get title of movie {self.current_movie.get()}")
+        except Exception as err:
+            logging.error(f"failed to get title of movie {self.current_movie.get()}, {err}")
 
     def get_first_page_summary(self, json_data: dict) -> Optional[str]:
         """
@@ -405,9 +410,9 @@ class IMDbCrawler:
         """
         try:
             return json_data["description"]
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get first page summary of movie {self.current_movie.get()}"
+                f"failed to get first page summary of movie {self.current_movie.get()}: {err}"
             )
 
     def get_director(self, json_data: dict) -> Optional[List[str]]:
@@ -425,9 +430,9 @@ class IMDbCrawler:
         """
         try:
             return [person["name"] for person in json_data["director"]]
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get directors of movie {self.current_movie.get()}"
+                f"failed to get directors of movie {self.current_movie.get()}: {err}"
             )
 
     def get_stars(self, soup: BeautifulSoup) -> Optional[List[str]]:
@@ -446,8 +451,8 @@ class IMDbCrawler:
         try:
             tags = soup.find_all("a", {"data-testid": "title-cast-item__actor"})
             return [tag.text for tag in tags]
-        except:
-            logging.error(f"failed to get stars of movie {self.current_movie.get()}")
+        except Exception as err:
+            logging.error(f"failed to get stars of movie {self.current_movie.get()}: {err}")
 
     def get_writers(self, json_data: dict) -> Optional[List[str]]:
         """
@@ -468,8 +473,8 @@ class IMDbCrawler:
                 for person in json_data["creator"]
                 if person["@type"] == "Person"
             ]
-        except:
-            logging.error(f"failed to get writers of movie {self.current_movie.get()}")
+        except Exception as err:
+            logging.error(f"failed to get writers of movie {self.current_movie.get()}: {err}")
 
     def get_related_links(self, soup: BeautifulSoup) -> Optional[List[str]]:
         """
@@ -493,9 +498,9 @@ class IMDbCrawler:
                 self.get_id_from_URL(card.find("a").attrs["href"])
                 for card in poster_cards
             ]
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get related links of movie {self.current_movie.get()}"
+                f"failed to get related links of movie {self.current_movie.get()}: {err}"
             )
 
     @staticmethod
@@ -528,8 +533,8 @@ class IMDbCrawler:
                         self.remove_html_tags_from_text(item["htmlContent"])
                         for item in data["section"]["items"]
                     ]
-        except:
-            logging.error(f"failed to get summary of movie {self.current_movie.get()}")
+        except Exception as err:
+            logging.error(f"failed to get summary of movie {self.current_movie.get()}: {err}")
 
     def get_synopsis(self, json_data: dict) -> Optional[List[str]]:
         """
@@ -619,9 +624,9 @@ class IMDbCrawler:
             The rating of the movie
         """
         try:
-            return json_data["aggregateRating"]["ratingValue"]
-        except:
-            logging.error(f"failed to get rating of movie {self.current_movie.get()}")
+            return str(json_data["aggregateRating"]["ratingValue"])
+        except Exception as err:
+            logging.error(f"failed to get rating of movie {self.current_movie.get()}: {err}")
 
     def get_mpaa(self, json_data: dict) -> Optional[str]:
         """
@@ -638,8 +643,8 @@ class IMDbCrawler:
         """
         try:
             return json_data["contentRating"]
-        except:
-            logging.error(f"failed to get MPAA of movie {self.current_movie.get()}")
+        except Exception as err:
+            logging.error(f"failed to get MPAA of movie {self.current_movie.get()}: {err}")
 
     def get_release_year(self, json_data: dict) -> Optional[str]:
         """
@@ -657,9 +662,9 @@ class IMDbCrawler:
         try:
             return json_data["datePublished"]
             # return tag.text
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get release year of movie {self.current_movie.get()}"
+                f"failed to get release year of movie {self.current_movie.get()}: {err}"
             )
 
     def get_languages(self, soup: BeautifulSoup) -> Optional[List[str]]:
@@ -683,9 +688,9 @@ class IMDbCrawler:
                 "a", class_="ipc-metadata-list-item__list-content-item--link"
             )
             return [tag.text for tag in tags]
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get languages of movie {self.current_movie.get()}"
+                f"failed to get languages of movie {self.current_movie.get()}: {err}"
             )
 
     @staticmethod
@@ -713,9 +718,9 @@ class IMDbCrawler:
                 "a", class_="ipc-metadata-list-item__list-content-item--link"
             )
             return [self.remove_new_lines(tag.text) for tag in tags]
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get countries of origin of movie {self.current_movie.get()}"
+                f"failed to get countries of origin of movie {self.current_movie.get()}: {err.with_traceback()}"
             )
 
     def get_budget(self, soup: BeautifulSoup) -> Optional[str]:
@@ -737,8 +742,8 @@ class IMDbCrawler:
             )
             tag = tag.find("div", class_="ipc-metadata-list-item__content-container")
             return tag.text.strip()
-        except:
-            logging.error(f"failed to get budget of movie {self.current_movie.get()}")
+        except Exception as err:
+            logging.error(f"failed to get budget of movie {self.current_movie.get()}: {err}")
 
     def get_gross_worldwide(self, soup: BeautifulSoup) -> Optional[str]:
         """
@@ -771,20 +776,18 @@ class IMDbCrawler:
 
 
 def main():
-    imdb_crawler = IMDbCrawler(crawling_threshold=10000)
-    # imdb_crawler.read_from_file_as_json()
-    imdb_crawler.start_crawling(
-        max_workers=20, file_batch_size=1000, write_to_file=True
+    crawler = IMDbCrawler(crawling_threshold=1)
+    # crawler.read_from_file_as_json()
+    crawler.start_crawling(
+        max_workers=15, file_batch_size=1000, write_to_file=False
     )
+    crawler.write_to_file_as_json("IMDB_crawled.json")
+    
 
 
 if __name__ == "__main__":
     main()
-    # imdb_crawler = IMDbCrawler(crawling_threshold=10)
-    # imdb_crawler.crawl_page_info("tt0110912")
-    # # from pprint import pprint
-    # # pprint(imdb_crawler.crawled[0]["summaries"])
-    # # print(imdb_crawler.crawled[0]["title"])
-    # # imdb_crawler.crawl_page_info("tt0050083")
-    # # imdb_crawler.start_crawling()
-    # imdb_crawler.write_to_file_as_json()
+    # id="tt0072500"
+    # crawler = IMDbCrawler()
+    # crawler.crawl_page_info(id)
+    # crawler.write_to_file_as_json(f"{id}.json")
