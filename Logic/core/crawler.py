@@ -294,11 +294,22 @@ class IMDbCrawler:
             logging.error(f"Failed to crawl {url}")
             return
 
-        self.extract_movie_info(soup, movie, id)
+        json_data = json.loads(soup.find("script", type="application/ld+json").text)
+        
+        movie["id"] = id
+        movie["title"] = self.get_title(json_data)
+        self.current_movie.set(f"`[id={id}] {movie['title']}`")
+
+        # is_movie = self.check_page_is_for_movie(soup)
+        if json_data["@type"] != "Movie":
+            logging.info(f"Skipped crawling {self.current_movie.get()} as it {json_data['@type']}")
+            return
+
+        self.extract_movie_info(soup, json_data, movie, id)
         self.add_to_crawled(movie)
         self.add_to_crawling_queue(movie["related_links"])
 
-    def extract_movie_info(self, soup, movie, id):
+    def extract_movie_info(self, soup, json_data, movie, id):
         """
         Extract the information of the movie from the response and save it in the movie instance.
 
@@ -311,37 +322,31 @@ class IMDbCrawler:
         URL: str
             The URL of the site
         """
-        json_data = json.loads(soup.find("script", type="application/ld+json").text)
-        movie["id"] = id
-        movie["title"] = self.get_title(json_data)
-        self.current_movie.set(f"`{movie['title']}`")
-        is_movie = self.check_page_is_for_movie(soup)
-        print(f"is_movie: {is_movie}")
-        # movie["first_page_summary"] = self.get_first_page_summary(json_data)
-        # movie["release_year"] = self.get_release_year(json_data)
-        # movie["mpaa"] = self.get_mpaa(json_data)
-        # movie["budget"] = self.get_budget(soup)
-        # movie["gross_worldwide"] = self.get_gross_worldwide(soup)
-        # movie["directors"] = self.get_director(json_data)
-        # movie["writers"] = self.get_writers(json_data)
-        # movie["stars"] = self.get_stars(soup)
+        movie["first_page_summary"] = self.get_first_page_summary(json_data)
+        movie["release_year"] = self.get_release_year(json_data)
+        movie["mpaa"] = self.get_mpaa(json_data)
+        movie["budget"] = self.get_budget(soup)
+        movie["gross_worldwide"] = self.get_gross_worldwide(soup)
+        movie["directors"] = self.get_director(json_data)
+        movie["writers"] = self.get_writers(json_data)
+        movie["stars"] = self.get_stars(soup)
         movie["related_links"] = self.get_related_links(soup)
-        # movie["genres"] = self.get_genres(json_data)
-        # movie["languages"] = self.get_languages(soup)
-        # movie["countries_of_origin"] = self.get_countries_of_origin(soup)
-        # movie["rating"] = self.get_rating(json_data)
+        movie["genres"] = self.get_genres(json_data)
+        movie["languages"] = self.get_languages(soup)
+        movie["countries_of_origin"] = self.get_countries_of_origin(soup)
+        movie["rating"] = self.get_rating(json_data)
 
-        # summary_soup = self.crawl(self.get_summary_link(id))
-        # plotsummary_json_data = json.loads(
-        #     summary_soup.find(
-        #         "script", {"id": "__NEXT_DATA__", "type": "application/json"}
-        #     ).text
-        # )
-        # movie["summaries"] = self.get_summary(plotsummary_json_data)
-        # movie["synopsis"] = self.get_synopsis(plotsummary_json_data)
+        summary_soup = self.crawl(self.get_summary_link(id))
+        plotsummary_json_data = json.loads(
+            summary_soup.find(
+                "script", {"id": "__NEXT_DATA__", "type": "application/json"}
+            ).text
+        )
+        movie["summaries"] = self.get_summary(plotsummary_json_data)
+        movie["synopsis"] = self.get_synopsis(plotsummary_json_data)
 
-        # reviews_soup = self.crawl(self.get_review_link(id))
-        # movie["reviews"] = self.get_reviews_with_scores(reviews_soup)
+        reviews_soup = self.crawl(self.get_review_link(id))
+        movie["reviews"] = self.get_reviews_with_scores(reviews_soup)
         logging.info(f"Finished crawling {movie['title']}")
 
     def check_page_is_for_movie(self, soup: BeautifulSoup) -> bool:
@@ -360,9 +365,10 @@ class IMDbCrawler:
         # class="ipc-inline-list ipc-inline-list--show-dividers sc-d8941411-2 cdJsTz baseAlt"
         tag = soup.find("ul", class_="ipc-inline-list ipc-inline-list--show-dividers sc-d8941411-2 cdJsTz baseAlt")
         tag = tag.find("li", class_="ipc-inline-list__item")
-        if tag.text.strip() in ["TV Series", "Video Game", "TV Mini Series", "TV Movie", "TV Special"]:
+        typ = tag.text.strip()
+        if typ in ["TV Series", "Video Game", "TV Mini Series", "TV Movie", "TV Special"]:
             return False
-        if len(tag.text.strip()) < 20:
+        if len(typ) < 20 and not any(char.isdigit() for char in typ):
             return False
         return True
 
@@ -795,18 +801,18 @@ class IMDbCrawler:
 
 
 def main():
-    crawler = IMDbCrawler(crawling_threshold=1)
+    crawler = IMDbCrawler(crawling_threshold=10000)
     # crawler.read_from_file_as_json()
     crawler.start_crawling(
         max_workers=15, file_batch_size=1000, write_to_file=False
     )
     crawler.write_to_file_as_json("IMDB_crawled.json")
-    
 
 
 if __name__ == "__main__":
-    # main()
-    id="tt0903747"
-    crawler = IMDbCrawler()
-    crawler.crawl_page_info(id)
-    crawler.write_to_file_as_json(f"{id}.json")
+    main()
+    # id="tt0903747"  # breaking bad
+    # id="tt0120737"  # LOTR
+    # crawler = IMDbCrawler()
+    # crawler.crawl_page_info(id)
+    # crawler.write_to_file_as_json(f"{id}.json")
