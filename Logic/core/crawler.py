@@ -224,31 +224,26 @@ class IMDbCrawler:
         """
         self.extract_top_250()
         futures = []
-        crawled_counter = 0
         files_counter = 0
         total_written = 0
-        
+
         def wait_for_jobs():
             wait(futures)
             futures.clear()
 
         def write_to_file_and_clear():
             nonlocal files_counter, total_written
-            if len(self.crawled) % 100 == 0:
-                with open("crawled_count", "w") as f:
-                    f.write(f"{total_written + len(self.crawled)}\n")
-
-            if write_to_file and len(self.crawled) % file_batch_size == 0:
+            if write_to_file and len(self.crawled) >= file_batch_size:
                 files_counter += 1
                 total_written += len(self.crawled)
                 self.write_to_file_as_json(f"IMDB_crawled_{files_counter:02d}.json")
                 self.crawled.clear()
                 gc.collect()
-        
+
         self.after_add_to_crawled = write_to_file_and_clear
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            while crawled_counter < self.crawling_threshold:
+            while len(self.crawled) + total_written < self.crawling_threshold:
                 if self.not_crawled.empty():
                     if len(futures) == 0:
                         break
@@ -256,7 +251,6 @@ class IMDbCrawler:
                 else:
                     id = self.not_crawled.get()
                     futures.append(executor.submit(self.crawl_page_info, id))
-                    crawled_counter += 1
 
         wait_for_jobs()
         if write_to_file and len(self.crawled) > 0:
