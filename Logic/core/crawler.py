@@ -9,6 +9,7 @@ from contextvars import ContextVar
 from logging.config import dictConfig
 from queue import Queue
 from threading import Lock
+import threading
 from typing import List, Optional, Set
 
 import requests
@@ -314,32 +315,56 @@ class IMDbCrawler:
         movie["id"] = id
         movie["title"] = self.get_title(json_data)
         self.current_movie.set(f"`{movie['title']}`")
-        movie["first_page_summary"] = self.get_first_page_summary(json_data)
-        movie["release_year"] = self.get_release_year(json_data)
-        movie["mpaa"] = self.get_mpaa(json_data)
-        movie["budget"] = self.get_budget(soup)
-        movie["gross_worldwide"] = self.get_gross_worldwide(soup)
-        movie["directors"] = self.get_director(json_data)
-        movie["writers"] = self.get_writers(json_data)
-        movie["stars"] = self.get_stars(soup)
+        is_movie = self.check_page_is_for_movie(soup)
+        print(f"is_movie: {is_movie}")
+        # movie["first_page_summary"] = self.get_first_page_summary(json_data)
+        # movie["release_year"] = self.get_release_year(json_data)
+        # movie["mpaa"] = self.get_mpaa(json_data)
+        # movie["budget"] = self.get_budget(soup)
+        # movie["gross_worldwide"] = self.get_gross_worldwide(soup)
+        # movie["directors"] = self.get_director(json_data)
+        # movie["writers"] = self.get_writers(json_data)
+        # movie["stars"] = self.get_stars(soup)
         movie["related_links"] = self.get_related_links(soup)
-        movie["genres"] = self.get_genres(json_data)
-        movie["languages"] = self.get_languages(soup)
-        movie["countries_of_origin"] = self.get_countries_of_origin(soup)
-        movie["rating"] = self.get_rating(json_data)
+        # movie["genres"] = self.get_genres(json_data)
+        # movie["languages"] = self.get_languages(soup)
+        # movie["countries_of_origin"] = self.get_countries_of_origin(soup)
+        # movie["rating"] = self.get_rating(json_data)
 
-        summary_soup = self.crawl(self.get_summary_link(id))
-        plotsummary_json_data = json.loads(
-            summary_soup.find(
-                "script", {"id": "__NEXT_DATA__", "type": "application/json"}
-            ).text
-        )
-        movie["summaries"] = self.get_summary(plotsummary_json_data)
-        movie["synopsis"] = self.get_synopsis(plotsummary_json_data)
+        # summary_soup = self.crawl(self.get_summary_link(id))
+        # plotsummary_json_data = json.loads(
+        #     summary_soup.find(
+        #         "script", {"id": "__NEXT_DATA__", "type": "application/json"}
+        #     ).text
+        # )
+        # movie["summaries"] = self.get_summary(plotsummary_json_data)
+        # movie["synopsis"] = self.get_synopsis(plotsummary_json_data)
 
-        reviews_soup = self.crawl(self.get_review_link(id))
-        movie["reviews"] = self.get_reviews_with_scores(reviews_soup)
+        # reviews_soup = self.crawl(self.get_review_link(id))
+        # movie["reviews"] = self.get_reviews_with_scores(reviews_soup)
         logging.info(f"Finished crawling {movie['title']}")
+
+    def check_page_is_for_movie(self, soup: BeautifulSoup) -> bool:
+        """
+        Check if the page is for a movie or not (TV Series, Video Game, etc.)
+
+        Parameters
+        ----------
+        soup: BeautifulSoup
+            The soup of the page
+        Returns
+        ----------
+        bool
+            True if the page is for a movie, False otherwise
+        """
+        # class="ipc-inline-list ipc-inline-list--show-dividers sc-d8941411-2 cdJsTz baseAlt"
+        tag = soup.find("ul", class_="ipc-inline-list ipc-inline-list--show-dividers sc-d8941411-2 cdJsTz baseAlt")
+        tag = tag.find("li", class_="ipc-inline-list__item")
+        if tag.text.strip() in ["TV Series", "Video Game", "TV Mini Series", "TV Movie", "TV Special"]:
+            return False
+        if len(tag.text.strip()) < 20:
+            return False
+        return True
 
     @staticmethod
     def get_summary_link(id: str) -> str:
@@ -763,9 +788,9 @@ class IMDbCrawler:
             tag = tag.find("div", class_="ipc-metadata-list-item__content-container")
             tag = tag.find("span", class_="ipc-metadata-list-item__list-content-item")
             return tag.text.strip()
-        except:
+        except Exception as err:
             logging.error(
-                f"failed to get gross worldwide of movie {self.current_movie.get()}"
+                f"failed to get gross worldwide of movie {self.current_movie.get()}: {err}"
             )
 
 
@@ -780,8 +805,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    # id="tt0072500"
-    # crawler = IMDbCrawler()
-    # crawler.crawl_page_info(id)
-    # crawler.write_to_file_as_json(f"{id}.json")
+    # main()
+    id="tt0903747"
+    crawler = IMDbCrawler()
+    crawler.crawl_page_info(id)
+    crawler.write_to_file_as_json(f"{id}.json")
