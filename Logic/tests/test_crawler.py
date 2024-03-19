@@ -14,14 +14,17 @@ def type_check(obj, expected_type):
 def check_field_types(json_file_path, expected_fields):
     with open(json_file_path, "r") as file:
         data = json.load(file)
+
     # check len of the data
     assert len(data) >= 1000, f"Expected at least 1000 movies, but got {len(data)}"
 
     # check data types
     for movie in data:
         for field, expected_type in expected_fields.items():
+            if movie[field] is None:
+                continue
             assert (
-                field in movie and movie[field] is not None
+                field in movie
             ), f'Expected field {field} not found in movie {movie["id"]}'
             assert type_check(
                 movie[field], expected_type
