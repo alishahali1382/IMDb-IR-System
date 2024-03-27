@@ -1,6 +1,8 @@
-import numpy as np
 import itertools
 import random
+from typing import Iterator
+
+import numpy as np
 
 
 class MinHashLSH:
@@ -17,8 +19,14 @@ class MinHashLSH:
         """
         self.documents = documents
         self.num_hashes = num_hashes
+        self.num_docs = len(documents)
+        self.hash_funcs = [self._make_hash_func(i) for i in range(num_hashes)]
 
-    def shingle_document(self, document, k=2):
+    @staticmethod
+    def _make_hash_func(i):
+        return lambda x: hash(f"hash{i:03}<{x}>")
+
+    def shingle_document(self, document: str, k=2):
         """
         Convert a document into a set of shingles.
 
@@ -34,8 +42,9 @@ class MinHashLSH:
         set
             A set of shingles.
         """
-        shingles = None
-        return shingles
+        # return set(document[i : i + k] for i in range(len(document) - k + 1))  # character shingling
+        words = document.split()
+        return set(" ".join(words[i : i + k]) for i in range(len(words) - k + 1))  # word shingling
 
     def build_characteristic_matrix(self):
         """
@@ -46,8 +55,16 @@ class MinHashLSH:
         numpy.ndarray
             The binary characteristic matrix.
         """
-        # TODO
-        return
+        # NOTE: with the corpus size, calling this function is stupid. I dont know why this is in template.
+        shingle_sets = [self.shingle_document(doc) for doc in self.documents]
+        universe = set.union(*shingle_sets)
+        return np.array(
+            [
+                [1 if shingle in doc_shingles else 0 for doc_shingles in shingle_sets]
+                for shingle in universe
+            ],
+            dtype=bool,
+        )
 
     def min_hash_signature(self):
         """
@@ -58,16 +75,21 @@ class MinHashLSH:
         numpy.ndarray
             The Min-Hash signatures matrix.
         """
-        # TODO
-        return
+        for doc in self.documents:
+            yield np.array(
+                [
+                    min(map(hash_func, self.shingle_document(doc)))
+                    for hash_func in self.hash_funcs
+                ]
+            )
 
-    def lsh_buckets(self, signature, bands=10, rows_per_band=10):
+    def lsh_buckets(self, signatures: Iterator[np.ndarray], bands=10, rows_per_band=10):
         """
         Group documents into Locality-Sensitive Hashing (LSH) buckets based on Min-Hash signatures.
 
         Parameters
         ----------
-        signature : numpy.ndarray
+        signatures : Iterator[np.ndarray]
             Min-Hash signatures for documents.
         bands : int
             Number of bands for LSH.
@@ -79,8 +101,15 @@ class MinHashLSH:
         dict
             A dictionary mapping bucket IDs to lists of document indices.
         """
-        # TODO
-        return
+        buckets = {}
+        for i, sig in enumerate(signatures):
+            for band in range(bands):
+                band_hash = hash(tuple(sig[band * rows_per_band : (band + 1) * rows_per_band]))
+                if band_hash not in buckets:
+                    buckets[band_hash] = []
+                buckets[band_hash].append(i)
+            
+        return buckets
 
     def perform_lsh(self):
         """
@@ -91,8 +120,8 @@ class MinHashLSH:
         dict
             A dictionary mapping bucket IDs to lists of document indices.
         """
-        # TODO
-        return
+        bands = self.num_hashes // 5
+        return self.lsh_buckets(self.min_hash_signature(), bands, 5)
 
     def jaccard_score(self, first_set, second_set):
         """
@@ -110,8 +139,9 @@ class MinHashLSH:
         float
             Jaccard score.
         """
-        # TODO
-        pass
+        intersection_size = len(first_set.intersection(second_set))
+        union_size = len(first_set.union(second_set))
+        return intersection_size / union_size
 
     def jaccard_similarity_test(self, buckets, all_documents):
         """
@@ -158,3 +188,11 @@ class MinHashLSH:
 
         # a good score is around 0.8
         print("your final score in near duplicate detection:", correct_near_duplicates / all_near_duplicates)
+
+if __name__ == "__main__":
+    import json
+    with open("Logic/core/LSHFakeData.json", "r") as f:
+        documents = json.load(f)
+    document_summaries = [" # ".join(doc["summaries"]) for doc in documents]
+    minhash_lsh = MinHashLSH(document_summaries, 500)
+    minhash_lsh.jaccard_similarity_test(minhash_lsh.perform_lsh(), document_summaries)

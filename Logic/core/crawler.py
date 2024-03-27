@@ -130,18 +130,14 @@ class IMDbCrawler:
         with open(filename, "w") as f:
             json.dump(self.crawled, f)
 
-    def read_from_file_as_json(self):
+    def read_from_file_as_json(self, file_count=1):
         """
         Read the crawled files from json
         """
-        # TODO
-        with open("IMDB_crawled.json", "r") as f:
-            self.crawled = None
-
-        with open("IMDB_not_crawled.json", "w") as f:
-            self.not_crawled = None
-
-        self.added_ids = None
+        self.crawled = []
+        for i in range(1, file_count + 1):
+            with open(f"crawled_data/IMDB_crawled_{i:02d}.json", "r") as f:
+                self.crawled.extend(json.load(f))
 
     def get(self, URL: str) -> requests.Response:
         """
