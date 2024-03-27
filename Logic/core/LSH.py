@@ -126,37 +126,35 @@ class MinHashLSH:
         """
         correct_near_duplicates = 0
         all_near_duplicates = 0
-
+        all_candidate_pairs = set()
+        
         for bucket_id in buckets.keys():
             docs_in_this_bucket = buckets[bucket_id]
             unique_doc_ids = set(docs_in_this_bucket)
-            if len(unique_doc_ids) > 1:
-                combinations = list(itertools.combinations(unique_doc_ids, 2))
-                for comb in combinations:
-                    all_near_duplicates += 1
+            all_candidate_pairs.update(itertools.combinations(unique_doc_ids, 2))
 
-                    first_doc_id = comb[0]
-                    second_doc_id = comb[1]
+        for first_doc_id, second_doc_id in all_candidate_pairs:
+            all_near_duplicates += 1
 
-                    first_shingled_doc = self.shingle_document(all_documents[first_doc_id], 2)
-                    second_shingled_doc = self.shingle_document(all_documents[second_doc_id], 2)
+            first_shingled_doc = self.shingle_document(all_documents[first_doc_id], 2)
+            second_shingled_doc = self.shingle_document(all_documents[second_doc_id], 2)
 
-                    near_duplicated_jaccard_score = self.jaccard_score(first_shingled_doc, second_shingled_doc)
-                    current_score = 0
+            near_duplicated_jaccard_score = self.jaccard_score(first_shingled_doc, second_shingled_doc)
+            current_score = 0
 
-                    for _ in range(5):
-                        random_doc_id = first_doc_id
-                        while random_doc_id == first_doc_id or random_doc_id == second_doc_id:
-                            random_doc_id = random.randint(0, len(all_documents) - 1)
-                        random_shingled_doc = self.shingle_document(all_documents[random_doc_id], 2)
+            for _ in range(5):
+                random_doc_id = first_doc_id
+                while random_doc_id == first_doc_id or random_doc_id == second_doc_id:
+                    random_doc_id = random.randint(0, len(all_documents) - 1)
+                random_shingled_doc = self.shingle_document(all_documents[random_doc_id], 2)
 
-                        random_jaccard_score = self.jaccard_score(first_shingled_doc, random_shingled_doc)
+                random_jaccard_score = self.jaccard_score(first_shingled_doc, random_shingled_doc)
 
-                        if near_duplicated_jaccard_score > random_jaccard_score:
-                            current_score += 1
+                if near_duplicated_jaccard_score > random_jaccard_score:
+                    current_score += 1
 
-                    if current_score == 5:
-                        correct_near_duplicates += 1
+            if current_score == 5:
+                correct_near_duplicates += 1
 
         # a good score is around 0.8
         print("your final score in near duplicate detection:", correct_near_duplicates / all_near_duplicates)
