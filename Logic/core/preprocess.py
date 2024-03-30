@@ -2,6 +2,10 @@ import re
 from typing import List
 import nltk
 
+def _download_nltk():
+    nltk.download('wordnet')
+    nltk.download('punkt')
+
 class Preprocessor:
 
     def __init__(self, documents: List[str]):
@@ -13,8 +17,10 @@ class Preprocessor:
         documents : list
             The list of documents to be preprocessed, path to stop words, or other parameters.
         """
+        _download_nltk()
         self.documents = documents
-        with open('stopwords.txt', 'r') as f:
+        stopwords_path = "/".join(__file__.split('/')[:-1]+['stopwords.txt'])
+        with open(stopwords_path, 'r') as f:
             self.stopwords = set(f.read().split('\n'))
 
     def preprocess(self) -> List[str]:
