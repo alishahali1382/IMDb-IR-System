@@ -1,8 +1,10 @@
-
+import re
+from typing import List
+import nltk
 
 class Preprocessor:
 
-    def __init__(self, documents: list):
+    def __init__(self, documents: List[str]):
         """
         Initialize the class.
 
@@ -11,11 +13,11 @@ class Preprocessor:
         documents : list
             The list of documents to be preprocessed, path to stop words, or other parameters.
         """
-        # TODO
         self.documents = documents
-        self.stopwords = []
+        with open('stopwords.txt', 'r') as f:
+            self.stopwords = set(f.read().split('\n'))
 
-    def preprocess(self):
+    def preprocess(self) -> List[str]:
         """
         Preprocess the text using the methods in the class.
 
@@ -24,10 +26,17 @@ class Preprocessor:
         List[str]
             The preprocessed documents.
         """
-         # TODO
-        return
+        docs: List[str] = []
+        for doc in self.documents:
+            doc = self.normalize(doc)
+            doc = self.remove_links(doc)
+            doc = self.remove_punctuations(doc)
+            words = self.tokenize(doc)
+            words = self.remove_stopwords(words)
+            docs.append(" ".join(words))
+        return docs
 
-    def normalize(self, text: str):
+    def normalize(self, text: str) -> str:
         """
         Normalize the text by converting it to a lower case, stemming, lemmatization, etc.
 
@@ -41,10 +50,12 @@ class Preprocessor:
         str
             The normalized text.
         """
-        # TODO
-        return
+        text = text.lower()
+        text = nltk.stem.PorterStemmer().stem(text)
+        text = nltk.stem.WordNetLemmatizer().lemmatize(text)
+        return text
 
-    def remove_links(self, text: str):
+    def remove_links(self, text: str) -> str:
         """
         Remove links from the text.
 
@@ -58,11 +69,11 @@ class Preprocessor:
         str
             The text with links removed.
         """
-        patterns = [r'\S*http\S*', r'\S*www\S*', r'\S+\.ir\S*', r'\S+\.com\S*', r'\S+\.org\S*', r'\S*@\S*']
-        # TODO
-        return
+        # NOTE: I almost did this on crawling part.
+        text = re.sub(r'http[^\s]+', '', text)
+        return text
 
-    def remove_punctuations(self, text: str):
+    def remove_punctuations(self, text: str) -> str:
         """
         Remove punctuations from the text.
 
@@ -76,10 +87,10 @@ class Preprocessor:
         str
             The text with punctuations removed.
         """
-        # TODO
-        return
+        text = re.sub(r'[^\w\s]', '', text)
+        return text
 
-    def tokenize(self, text: str):
+    def tokenize(self, text: str) -> List[str]:
         """
         Tokenize the words in the text.
 
@@ -93,10 +104,9 @@ class Preprocessor:
         list
             The list of words.
         """
-        # TODO
-        return
+        return nltk.word_tokenize(text)
 
-    def remove_stopwords(self, text: str):
+    def remove_stopwords(self, words: List[str]) -> List[str]:
         """
         Remove stopwords from the text.
 
@@ -110,6 +120,4 @@ class Preprocessor:
         list
             The list of words with stopwords removed.
         """
-        # TODO
-        return
-
+        return [word for word in words if word not in self.stopwords]
