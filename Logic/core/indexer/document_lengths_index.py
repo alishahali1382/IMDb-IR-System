@@ -1,9 +1,9 @@
 import json
-from indexes_enum import Indexes,Index_types
-from index_reader import Index_reader
+from .indexes_enum import Indexes, Index_types
+from .index_reader import Index_reader
 
 class DocumentLengthsIndex:
-    def __init__(self,path='index/'):
+    def __init__(self, path='index/'):
         """
         Initializes the DocumentLengthsIndex class.
 

@@ -17,7 +17,6 @@ class Preprocessor:
         documents : list
             The list of documents to be preprocessed, path to stop words, or other parameters.
         """
-        _download_nltk()
         self.documents = documents
         stopwords_path = "/".join(__file__.split('/')[:-1]+['stopwords.txt'])
         with open(stopwords_path, 'r') as f:
@@ -127,3 +126,8 @@ class Preprocessor:
             The list of words with stopwords removed.
         """
         return [word for word in words if word not in self.stopwords]
+
+if __name__ == "__main__":
+    _download_nltk()
+    preprocessor = Preprocessor(["This is a test sentence.", "This is another test sentence."])
+    print(preprocessor.preprocess())

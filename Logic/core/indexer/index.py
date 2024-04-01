@@ -14,11 +14,13 @@ class Index:
         self.preprocessed_documents = preprocessed_documents
 
         self.index = {
-            Indexes.DOCUMENTS.value: self.index_documents(),
-            Indexes.STARS.value: self.index_stars(),
-            Indexes.GENRES.value: self.index_genres(),
-            Indexes.SUMMARIES.value: self.index_summaries(),
+            Indexes.DOCUMENTS: {},
+            Indexes.STARS: {},
+            Indexes.GENRES: {},
+            Indexes.SUMMARIES: {},
         }
+        for document in self.preprocessed_documents:
+            self.add_document_to_index(document)
 
     def index_documents(self):
         """
@@ -30,11 +32,7 @@ class Index:
         dict
             The index of the documents based on the document ID.
         """
-
-        current_index = {}
-        #         TODO
-
-        return current_index
+        return {}
 
     def index_stars(self):
         """
@@ -46,9 +44,7 @@ class Index:
             The index of the documents based on the stars. You should also store each terms' tf in each document.
             So the index type is: {term: {document_id: tf}}
         """
-
-        #         TODO
-        pass
+        return {}
 
     def index_genres(self):
         """
@@ -60,9 +56,7 @@ class Index:
             The index of the documents based on the genres. You should also store each terms' tf in each document.
             So the index type is: {term: {document_id: tf}}
         """
-
-        #         TODO
-        pass
+        return {}
 
     def index_summaries(self):
         """
@@ -74,11 +68,7 @@ class Index:
             The index of the documents based on the summaries. You should also store each terms' tf in each document.
             So the index type is: {term: {document_id: tf}}
         """
-
-        current_index = {}
-        #         TODO
-
-        return current_index
+        return {}
 
     def get_posting_list(self, word: str, index_type: str):
         """
@@ -96,10 +86,10 @@ class Index:
         list
             posting list of the word (you should return the list of document IDs that contain the word and ignore the tf)
         """
-
+        assert index_type in Indexes.__members__.keys(), 'Invalid index type'
+        
         try:
-            #         TODO
-            pass
+            return list(self.index[index_type][word].keys())
         except:
             return []
 
@@ -113,8 +103,31 @@ class Index:
             Document to add to all the indexes
         """
 
-        #         TODO
-        pass
+        self.index[Indexes.DOCUMENTS.value][document['id']] = document
+
+        stars_index = self.index[Indexes.STARS.value]
+        for star in document['stars']:
+            if star not in stars_index:
+                stars_index[star] = {}
+            if document['id'] not in stars_index[star]:
+                stars_index[star][document['id']] = 0
+            stars_index[star][document['id']] += 1
+
+        genres_index = self.index[Indexes.GENRES.value]
+        for genre in document['genres']:
+            if genre not in genres_index:
+                genres_index[genre] = {}
+            if document['id'] not in genres_index[genre]:
+                genres_index[genre][document['id']] = 0
+            genres_index[genre][document['id']] += 1
+
+        summaries_index = self.index[Indexes.SUMMARIES.value]
+        for summary in document['summaries']:
+            if summary not in summaries_index:
+                summaries_index[summary] = {}
+            if document['id'] not in summaries_index[summary]:
+                summaries_index[summary][document['id']] = 0
+            summaries_index[summary][document['id']] += 1
 
     def remove_document_from_index(self, document_id: str):
         """
@@ -125,9 +138,23 @@ class Index:
         document_id : str
             ID of the document to remove from all the indexes
         """
+            
+        document = self.index[Indexes.DOCUMENTS.value].pop(document_id, None)
 
-        #         TODO
-        pass
+        if document is None:
+            return
+
+        stars_index = self.index[Indexes.STARS.value]
+        for star in document['stars']:
+            stars_index[star].pop(document_id, None)
+
+        genres_index = self.index[Indexes.GENRES.value]
+        for genre in document['genres']:
+            genres_index[genre].pop(document_id, None)
+
+        summaries_index = self.index[Indexes.SUMMARIES.value]
+        for summary in document['summaries']:
+            summaries_index[summary].pop(document_id, None)
 
     def check_add_remove_is_correct(self):
         """
@@ -303,3 +330,8 @@ class Index:
             return False
 
 # TODO: Run the class with needed parameters, then run check methods and finally report the results of check methods
+
+if __name__ == '__main__':
+    index = Index([])
+    index.check_add_remove_is_correct()
+    
