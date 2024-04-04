@@ -227,15 +227,14 @@ class Index:
         if not os.path.exists(path):
             os.makedirs(path)
 
-        if index_type is None:
-            # TODO
-            pass
+        data = self.index
+        if index_type is not None:
+            if index_type not in self.index:
+                raise ValueError('Invalid index type')
+            data = data[index_type]
 
-        if index_type not in self.index:
-            raise ValueError('Invalid index type')
-
-        #         TODO
-        pass
+        with open(path, 'w') as f:
+            json.dump(data, f, check_circular=False)
 
     def load_index(self, path: str):
         """
@@ -247,8 +246,8 @@ class Index:
             Path to load the file
         """
 
-        #         TODO
-        pass
+        with open(path, 'r') as f:
+            self.index = json.load(f)
 
     def check_if_index_loaded_correctly(self, index_type: str, loaded_index: dict):
         """
