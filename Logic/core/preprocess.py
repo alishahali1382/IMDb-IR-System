@@ -8,38 +8,34 @@ def _download_nltk():
 
 class Preprocessor:
 
-    def __init__(self, documents: List[str]):
+    def __init__(self):
         """
         Initialize the class.
-
-        Parameters
-        ----------
-        documents : list
-            The list of documents to be preprocessed, path to stop words, or other parameters.
         """
-        self.documents = documents
         stopwords_path = "/".join(__file__.split('/')[:-1]+['stopwords.txt'])
         with open(stopwords_path, 'r') as f:
             self.stopwords = set(f.read().split('\n'))
 
-    def preprocess(self) -> List[str]:
+    def preprocess(self, document: str) -> List[str]:
         """
         Preprocess the text using the methods in the class.
+
+        Parameters
+        ----------
+        documents : str
+            The document to be preprocessed
 
         Returns
         ----------
         List[str]
             The preprocessed documents.
         """
-        docs: List[str] = []
-        for doc in self.documents:
-            doc = self.normalize(doc)
-            doc = self.remove_links(doc)
-            doc = self.remove_punctuations(doc)
-            words = self.tokenize(doc)
-            words = self.remove_stopwords(words)
-            docs.append(" ".join(words))
-        return docs
+        document = self.normalize(document)
+        document = self.remove_links(document)
+        document = self.remove_punctuations(document)
+        words = self.tokenize(document)
+        words = self.remove_stopwords(words)
+        return words
 
     def normalize(self, text: str) -> str:
         """
@@ -129,5 +125,6 @@ class Preprocessor:
 
 if __name__ == "__main__":
     _download_nltk()
-    preprocessor = Preprocessor(["This is a test sentence.", "This is another test sentence."])
-    print(preprocessor.preprocess())
+    preprocessor = Preprocessor()
+    print(preprocessor.preprocess("This is a test sentence."))
+    print(preprocessor.preprocess("This is another test sentence."))
