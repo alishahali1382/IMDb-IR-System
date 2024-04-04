@@ -24,7 +24,7 @@ class DocumentLengthsIndex:
         self.store_document_lengths_index(path, Indexes.GENRES)
         self.store_document_lengths_index(path, Indexes.SUMMARIES)
 
-    def get_documents_length(self, where):
+    def get_documents_length(self, where: str):
         """
         Gets the documents' length for the specified field.
 
@@ -40,7 +40,11 @@ class DocumentLengthsIndex:
             the document's length in that field (where).
         """
 
-        # TODO:
+        ret = {}
+        for doc_id, doc in self.documents_index.items():
+            ret[doc_id] = len(doc[where])
+        
+        return ret
     
     def store_document_lengths_index(self, path , index_name):
         """
