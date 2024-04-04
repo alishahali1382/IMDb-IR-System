@@ -1,3 +1,7 @@
+import re
+from typing import List
+
+
 class SpellCorrection:
     def __init__(self, all_documents):
         """
@@ -27,11 +31,10 @@ class SpellCorrection:
             A set of shingles.
         """
         shingles = set()
-        
-        # TODO: Create shingle here
-
+        for i in range(len(word) - k + 1):
+            shingles.add(word[i:i + k])
         return shingles
-    
+
     def jaccard_score(self, first_set, second_set):
         """
         Calculate jaccard score.
@@ -48,12 +51,11 @@ class SpellCorrection:
         float
             Jaccard score.
         """
+        intersection = len(first_set.intersection(second_set))
+        union = len(first_set) + len(second_set) - intersection
+        return intersection / union
 
-        # TODO: Calculate jaccard score here.
-
-        return
-
-    def shingling_and_counting(self, all_documents):
+    def shingling_and_counting(self, all_documents: List[str]):
         """
         Shingle all words of the corpus and count TF of each word.
 
@@ -71,18 +73,22 @@ class SpellCorrection:
         """
         all_shingled_words = dict()
         word_counter = dict()
-
-        # TODO: Create shingled words dictionary and word counter dictionary here.
-                
+        for document in all_documents:
+            words = re.findall(r'\w+', document.lower())
+            for word in words:
+                if word not in word_counter:
+                    word_counter[word] = 0
+                    all_shingled_words[word] = self.shingle_word(word)
+                word_counter[word] += 1
         return all_shingled_words, word_counter
-    
-    def find_nearest_words(self, word):
+
+    def find_nearest_words(self, word: str):
         """
         Find correct form of a misspelled word.
 
         Parameters
         ----------
-        word : stf
+        word : str
             The misspelled word.
 
         Returns
@@ -90,19 +96,30 @@ class SpellCorrection:
         list of str
             5 nearest words.
         """
-        top5_candidates = list()
+        word_shingles = self.shingle_word(word)
+        candidates = []
+        for candidate, candidate_shingles in self.all_shingled_words.items():
+            jaccard = self.jaccard_score(word_shingles, candidate_shingles)
+            candidates.append((candidate, jaccard))
 
-        # TODO: Find 5 nearest candidates here.
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        candidates = candidates[:5]
+        
+        max_tf = max(self.word_counter[candidate] for candidate, _ in candidates)
+        for i, (candidate, score) in enumerate(candidates):
+            normalized_tf = self.word_counter[candidate] / max_tf
+            candidates[i] = (candidate, score * normalized_tf)
 
-        return top5_candidates
-    
-    def spell_check(self, query):
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return [candidate for candidate, _ in candidates]
+
+    def spell_check(self, query: str):
         """
         Find correct form of a misspelled query.
 
         Parameters
         ----------
-        query : stf
+        query : str
             The misspelled query.
 
         Returns
@@ -110,8 +127,12 @@ class SpellCorrection:
         str
             Correct form of the query.
         """
-        final_result = ""
-        
-        # TODO: Do spell correction here.
-
-        return final_result
+        result = []
+        words = re.findall(r'\w+', query.lower())
+        for word in words:
+            if word not in self.all_shingled_words:
+                candidates = self.find_nearest_words(word)
+                result.append(candidates[0])
+            else:
+                result.append(word)
+        return ' '.join(result)
