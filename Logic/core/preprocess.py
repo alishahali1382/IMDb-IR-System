@@ -16,6 +16,9 @@ class Preprocessor:
         with open(stopwords_path, 'r') as f:
             self.stopwords = set(f.read().split('\n'))
 
+        self.stemmer = nltk.stem.PorterStemmer()
+        self.lemmatizer = nltk.stem.WordNetLemmatizer()
+
     def preprocess(self, document: str) -> List[str]:
         """
         Preprocess the text using the methods in the class.
@@ -52,8 +55,8 @@ class Preprocessor:
             The normalized text.
         """
         text = text.lower()
-        text = nltk.stem.PorterStemmer().stem(text)
-        text = nltk.stem.WordNetLemmatizer().lemmatize(text)
+        text = self.stemmer.stem(text)
+        text = self.lemmatizer.lemmatize(text)
         return text
 
     def remove_links(self, text: str) -> str:
