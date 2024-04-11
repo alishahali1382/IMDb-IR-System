@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 
 class Scorer:    
@@ -45,7 +46,7 @@ class Scorer:
                 list_of_documents.extend(self.index[term].keys())
         return list(set(list_of_documents))
     
-    def get_idf(self, term):
+    def get_idf(self, term: str):
         """
         Returns the inverse document frequency of a term.
 
@@ -65,11 +66,10 @@ class Scorer:
         """
         idf = self.idf.get(term, None)
         if idf is None:
-            # TODO
-            pass
+            self.idf[term] = idf = np.log10(self.N / len(self.index[term]))
         return idf
-    
-    def get_query_tfs(self, query):
+
+    def get_query_tfs(self, query: List[str]):
         """
         Returns the term frequencies of the terms in the query.
 
@@ -83,11 +83,12 @@ class Scorer:
         dict
             A dictionary of the term frequencies of the terms in the query.
         """
-        
-        #TODO
+        tfs= {term: 0 for term in query}
+        for term in query:
+            tfs[term] += 1
+        return tfs
 
-
-    def compute_scores_with_vector_space_model(self, query, method):
+    def compute_scores_with_vector_space_model(self, query: List[str], method: str):
         """
         compute scores with vector space model
 
@@ -103,9 +104,13 @@ class Scorer:
         dict
             A dictionary of the document IDs and their scores.
         """
-
-        # TODO
-        pass
+        scores= {}    
+        doc_method, query_method= method.split(r'\.')
+        query_tfs = self.get_query_tfs(query)
+        return {
+            doc_id: self.get_vector_space_model_score(query, query_tfs, doc_id, doc_method, query_method)
+            for doc_id in self.get_list_of_documents(query)
+        }
 
     def get_vector_space_model_score(self, query, query_tfs, document_id, document_method, query_method):
         """

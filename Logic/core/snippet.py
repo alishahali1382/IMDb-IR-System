@@ -1,7 +1,6 @@
 import re
 from typing import List, Tuple
-from nltk.stem import PorterStemmer
-from core.preprocess import Preprocessor
+from Logic.core.preprocess import Preprocessor
 
 preprocessor = Preprocessor()
 

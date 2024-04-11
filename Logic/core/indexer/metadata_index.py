@@ -12,7 +12,8 @@ class Metadata_index:
         path : str
             The path to the indexes.
         """
-        
+        self.documents = self.read_documents()
+        self.metadata_index = self.create_metadata_index()
         #TODO
 
     def read_documents(self):
@@ -37,7 +38,7 @@ class Metadata_index:
 
         return metadata_index
     
-    def get_average_document_field_length(self,where):
+    def get_average_document_field_length(self, where):
         """
         Returns the sum of the field lengths of all documents in the index.
 

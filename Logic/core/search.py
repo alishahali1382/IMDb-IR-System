@@ -1,9 +1,10 @@
 import json
+from typing import Dict, List
 import numpy as np
 from .preprocess import Preprocessor
 from .scorer import Scorer
-from .indexes_enum import Indexes, Index_types
-from .index_reader import Index_reader
+from .indexer.indexes_enum import Indexes, Index_types
+from .indexer.index_reader import Index_reader
 
 
 class SearchEngine:
@@ -54,8 +55,8 @@ class SearchEngine:
             A list of tuples containing the document IDs and their scores sorted by their scores.
         """
 
-        preprocessor = Preprocessor([query])
-        query = preprocessor.preprocess()[0].split()
+        preprocessor = Preprocessor()
+        query = preprocessor.preprocess(query)
 
         scores = {}
         if safe_ranking:
@@ -73,7 +74,7 @@ class SearchEngine:
 
         return result
 
-    def aggregate_scores(self, weights, scores, final_scores):
+    def aggregate_scores(self, weights: Dict[Indexes, float], scores: Dict[Indexes, Dict[Indexes, float]], final_scores: Dict[str, float]):
         """
         Aggregates the scores of the fields.
 
@@ -86,10 +87,13 @@ class SearchEngine:
         final_scores : dict
             The final scores of the documents.
         """
-        # TODO
-        pass
+        for typ, weight in weights.items():
+            if typ in scores:
+                for doc_id, score in scores[typ].items():
+                    final_scores[doc_id] = final_scores.get(doc_id, 0) + weight * score
 
-    def find_scores_with_unsafe_ranking(self, query, method, weights, max_results, scores):
+
+    def find_scores_with_unsafe_ranking(self, query: List[str], method: str, weights: Dict[Indexes, float], max_results: int, scores: Dict[Indexes, Dict[Indexes, float]]):
         """
         Finds the scores of the documents using the unsafe ranking method using the tiered index.
 
@@ -107,11 +111,20 @@ class SearchEngine:
             The scores of the documents.
         """
         for field in weights:
+            scores[field] = {}
             for tier in ["first_tier", "second_tier", "third_tier"]:
-                #TODO
-                pass
+                scorer = Scorer(self.tiered_index[field].index[tier], self.metadata_index.index["document_count"])                
+                if method == 'OkapiBM25':
+                    score = scorer.compute_socres_with_okapi_bm25(query, self.metadata_index.index["averge_document_length"][field.value], self.document_lengths_index[field].index)
+                else:
+                    score = scorer.compute_scores_with_vector_space_model(query, method)
+                scores[field].update(score)
 
-    def find_scores_with_safe_ranking(self, query, method, weights, scores):
+                if max_results != -1 & len(scores[field]) > max_results:
+                    break
+
+
+    def find_scores_with_safe_ranking(self, query: List[str], method: str, weights: Dict[Indexes, float], scores: Dict[Indexes, Dict[Indexes, float]]):
         """
         Finds the scores of the documents using the safe ranking method.
 
@@ -126,10 +139,15 @@ class SearchEngine:
         scores : dict
             The scores of the documents.
         """
-
         for field in weights:
-            #TODO
-            pass
+            scores[field] = {}
+            scorer = Scorer(self.document_indexes[field].index, self.metadata_index.index["document_count"])                
+            if method == 'OkapiBM25':
+                score = scorer.compute_socres_with_okapi_bm25(query, self.metadata_index.index["averge_document_length"][field.value], self.document_lengths_index[field].index)
+            else:
+                score = scorer.compute_scores_with_vector_space_model(query, method)
+            scores[field].update(score)
+
 
     def merge_scores(self, scores1, scores2):
         """
