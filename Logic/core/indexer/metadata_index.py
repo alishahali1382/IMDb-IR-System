@@ -1,6 +1,7 @@
 from index_reader import Index_reader
 from indexes_enum import Indexes, Index_types
 import json
+from utils import load_movies_dataset
 
 class Metadata_index:
     def __init__(self, path='index/'):
@@ -14,15 +15,13 @@ class Metadata_index:
         """
         self.documents = self.read_documents()
         self.metadata_index = self.create_metadata_index()
-        #TODO
 
     def read_documents(self):
         """
         Reads the documents.
         
         """
-
-        #TODO
+        return load_movies_dataset()
 
     def create_metadata_index(self):    
         """
@@ -47,8 +46,14 @@ class Metadata_index:
         where : str
             The field to get the document lengths for.
         """
-
-        #TODO
+        s = 0
+        for doc in self.documents:
+            x = doc[where]
+            if type(x) == str:
+                s += len(x)
+            else:
+                s += sum(len(y) for y in x)
+        return s / len(self.documents)
 
     def store_metadata_index(self, path):
         """
