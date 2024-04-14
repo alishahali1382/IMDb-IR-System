@@ -13,7 +13,7 @@ class SearchEngine:
         Initializes the search engine.
 
         """
-        path = '/index'
+        path = 'index/'
         self.document_indexes = {
             Indexes.STARS: Index_reader(path, Indexes.STARS),
             Indexes.GENRES: Index_reader(path, Indexes.GENRES),
@@ -56,7 +56,8 @@ class SearchEngine:
         """
 
         preprocessor = Preprocessor()
-        query = preprocessor.preprocess(query)
+        query = query.lower()
+        query = preprocessor.name_preprocess(query)
 
         scores = {}
         if safe_ranking:
@@ -141,7 +142,7 @@ class SearchEngine:
         """
         for field in weights:
             scores[field] = {}
-            scorer = Scorer(self.document_indexes[field].index, self.metadata_index.index["document_count"])                
+            scorer = Scorer(self.document_indexes[field].index, self.metadata_index.index["document_count"])
             if method == 'OkapiBM25':
                 score = scorer.compute_socres_with_okapi_bm25(query, self.metadata_index.index["averge_document_length"][field.value], self.document_lengths_index[field].index)
             else:
@@ -149,35 +150,17 @@ class SearchEngine:
             scores[field].update(score)
 
 
-    def merge_scores(self, scores1, scores2):
-        """
-        Merges two dictionaries of scores.
-
-        Parameters
-        ----------
-        scores1 : dict
-            The first dictionary of scores.
-        scores2 : dict
-            The second dictionary of scores.
-
-        Returns
-        -------
-        dict
-            The merged dictionary of scores.
-        """
-
-        #TODO
-
-
 if __name__ == '__main__':
     search_engine = SearchEngine()
     query = "spider man in wonderland"
     method = "lnc.ltc"
     weights = {
-        Indexes.STARS: 1,
-        Indexes.GENRES: 1,
-        Indexes.SUMMARIES: 1
+        Indexes.STARS: .2,
+        Indexes.GENRES: .1,
+        Indexes.SUMMARIES: .7
     }
     result = search_engine.search(query, method, weights)
 
-    print(result)
+    from Logic.utils import get_movie_by_id
+    for doc_id, score in result:
+        print(get_movie_by_id(doc_id)["title"], score)

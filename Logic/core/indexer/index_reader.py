@@ -1,3 +1,5 @@
+import os
+from typing import Dict
 from .indexes_enum import Indexes, Index_types
 import json
 
@@ -15,12 +17,15 @@ class Index_reader:
         index_type : Index_types
             The type of the index to read.  
         """
+        if os.getcwd().endswith("UI"):
+            path = f"../{path}"
+
         self.path = path
         self.index_name = index_name
         self.index_type = index_type
         self.index = self.get_index()
 
-    def get_index(self):
+    def get_index(self) -> Dict[str, Dict[str, int]]:
         """
         Gets the index from the file.
 

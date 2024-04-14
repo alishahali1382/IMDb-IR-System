@@ -1,5 +1,6 @@
-
 from typing import List
+import numpy as np
+import wandb
 
 class Evaluation:
 
@@ -22,12 +23,19 @@ class Evaluation:
         float
             The precision of the predicted results
         """
-        precision = 0.0
 
-        # TODO: Calculate precision here
-        
-        return precision
-    
+        precisions = []
+        for pred, act in zip(predicted, actual):
+            act = set(act)
+            tp, fp = 0, 0
+            for result in pred:
+                    if result in act:
+                        tp += 1
+                    else:
+                        fp += 1
+            precisions.append(tp / float(tp + fp))
+        return np.average(precisions)
+
     def calculate_recall(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
         """
         Calculates the recall of the predicted results
@@ -44,11 +52,12 @@ class Evaluation:
         float
             The recall of the predicted results
         """
-        recall = 0.0
+        recalls = []
+        for i in range(len(predicted)):
+            tp = len(set(predicted[i]).intersection(actual[i]))
+            recalls.append(tp / len(actual[i]))
 
-        # TODO: Calculate recall here
-
-        return recall
+        return np.mean(recalls)
     
     def calculate_F1(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
         """
@@ -66,21 +75,19 @@ class Evaluation:
         float
             The F1 score of the predicted results    
         """
-        f1 = 0.0
-
-        # TODO: Calculate F1 here
-
-        return f1
+        P = self.calculate_precision(actual, predicted)
+        R = self.calculate_recall(actual, predicted)
+        return 2 * (P * R) / (P + R)
     
-    def calculate_AP(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
+    def calculate_AP(self, actual: List[str], predicted: List[str]) -> float:
         """
-        Calculates the Mean Average Precision of the predicted results
+        Calculates the Average Precision of the predicted results
 
         Parameters
         ----------
-        actual : List[List[str]]
+        actual : List[str]
             The actual results
-        predicted : List[List[str]]
+        predicted : List[str]
             The predicted results
 
         Returns
@@ -89,8 +96,12 @@ class Evaluation:
             The Average Precision of the predicted results
         """
         AP = 0.0
-
-        # TODO: Calculate AP here
+        tp = 0
+        actual = set(actual)
+        for i, pred in enumerate(predicted, 1):
+            if pred in actual:
+                tp += 1
+                AP += tp / i
 
         return AP
     
@@ -110,15 +121,11 @@ class Evaluation:
         float
             The Mean Average Precision of the predicted results
         """
-        MAP = 0.0
-
-        # TODO: Calculate MAP here
-
-        return MAP
+        return np.mean([self.calculate_AP(actual[i], predicted[i]) for i in range(len(predicted))])
     
     def cacluate_DCG(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
         """
-        Calculates the Normalized Discounted Cumulative Gain (NDCG) of the predicted results
+        Calculates the Discounted Cumulative Gain (DCG) of the predicted results
 
         Parameters
         ----------
@@ -132,12 +139,20 @@ class Evaluation:
         float
             The DCG of the predicted results
         """
-        DCG = 0.0
+        return self.DCG([len(actual) - actual.index(a) if a in actual else 0 for a in predicted])
 
-        # TODO: Calculate DCG here
+    def DCG(self, R):
+        if len(R) == 0:
+            return 0
 
-        return DCG
-    
+        discounts = np.log2(np.arange(len(R)) + 2)
+        return np.sum(R / discounts)
+
+    def NDCG(self, R):
+        dcg = self.DCG(R)
+        perfect_dcg = self.DCG(sorted(R, reverse=True))
+        return dcg / perfect_dcg if perfect_dcg != 0 else 0
+
     def cacluate_NDCG(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
         """
         Calculates the Normalized Discounted Cumulative Gain (NDCG) of the predicted results
@@ -154,21 +169,21 @@ class Evaluation:
         float
             The NDCG of the predicted results
         """
-        NDCG = 0.0
+        ndcgs = []
+        for i in range(len(predicted)):
+            ndcgs.append(self.NDCG([len(actual[i]) - actual[i].index(a) if a in actual[i] else 0 for a in predicted[i]]))
 
-        # TODO: Calculate NDCG here
-
-        return NDCG
+        return np.mean(ndcgs)
     
-    def cacluate_RR(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
+    def cacluate_RR(self, actual: List[str], predicted: List[str]) -> float:
         """
-        Calculates the Mean Reciprocal Rank of the predicted results
+        Calculates the Reciprocal Rank of the predicted results
 
         Parameters
         ----------
-        actual : List[List[str]]
+        actual : List[str]
             The actual results
-        predicted : List[List[str]]
+        predicted : List[str]
             The predicted results
 
         Returns
@@ -176,11 +191,7 @@ class Evaluation:
         float
             The Reciprocal Rank of the predicted results
         """
-        RR = 0.0
-
-        # TODO: Calculate MRR here
-
-        return RR
+        return 1 / (predicted.index(actual[0]) + 1) if actual[0] in predicted else 0
     
     def cacluate_MRR(self, actual: List[List[str]], predicted: List[List[str]]) -> float:
         """
@@ -198,12 +209,7 @@ class Evaluation:
         float
             The MRR of the predicted results
         """
-        MRR = 0.0
-
-        # TODO: Calculate MRR here
-
-        return MRR
-    
+        return np.mean([self.cacluate_RR(actual[i], predicted[i]) for i in range(len(predicted))])
 
     def print_evaluation(self, precision, recall, f1, ap, map, dcg, ndcg, rr, mrr):
         """
@@ -232,8 +238,15 @@ class Evaluation:
             
         """
         print(f"name = {self.name}")
-
-        #TODO: Print the evaluation metrics
+        print(f"Precision = {precision}")
+        print(f"Recall = {recall}")
+        print(f"F1 Score = {f1}")
+        print(f"Average Precision = {ap}")
+        print(f"Mean Average Precision = {map}")
+        print(f"DCG = {dcg}")
+        print(f"NDCG = {ndcg}")
+        print(f"Reciprocal Rank = {rr}")
+        print(f"Mean Reciprocal Rank = {mrr}")
       
 
     def log_evaluation(self, precision, recall, f1, ap, map, dcg, ndcg, rr, mrr):
@@ -262,8 +275,20 @@ class Evaluation:
             The Mean Reciprocal Rank of the predicted results
             
         """
-        
-        #TODO: Log the evaluation metrics using Wandb
+        wandb.init(project="IMDb-IR-System", entity="evaluation")
+        wandb.log({
+            "Precision": precision,
+            "Recall": recall,
+            "F1 Score": f1,
+            "Average Precision": ap,
+            "Mean Average Precision": map,
+            "DCG": dcg,
+            "NDCG": ndcg,
+            "Reciprocal Rank": rr,
+            "Mean Reciprocal Rank": mrr
+        })
+
+        wandb.finish()
 
 
     def calculate_evaluation(self, actual: List[List[str]], predicted: List[List[str]]):
@@ -292,6 +317,3 @@ class Evaluation:
         #call print and viualize functions
         self.print_evaluation(precision, recall, f1, ap, map_score, dcg, ndcg, rr, mrr)
         self.log_evaluation(precision, recall, f1, ap, map_score, dcg, ndcg, rr, mrr)
-
-
-

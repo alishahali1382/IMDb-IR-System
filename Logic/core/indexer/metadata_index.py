@@ -1,7 +1,7 @@
-from index_reader import Index_reader
-from indexes_enum import Indexes, Index_types
+from .index_reader import Index_reader
+from .indexes_enum import Indexes, Index_types
 import json
-from utils import load_movies_dataset
+from ...utils import movies_dataset
 
 class Metadata_index:
     def __init__(self, path='index/'):
@@ -13,15 +13,8 @@ class Metadata_index:
         path : str
             The path to the indexes.
         """
-        self.documents = self.read_documents()
+        self.documents = movies_dataset
         self.metadata_index = self.create_metadata_index()
-
-    def read_documents(self):
-        """
-        Reads the documents.
-        
-        """
-        return load_movies_dataset()
 
     def create_metadata_index(self):    
         """
@@ -72,3 +65,4 @@ class Metadata_index:
     
 if __name__ == "__main__":
     meta_index = Metadata_index()
+    meta_index.store_metadata_index('index/')

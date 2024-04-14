@@ -1,5 +1,5 @@
 import re
-from typing import List
+from typing import Dict, List
 import nltk
 
 def _download_nltk():
@@ -18,6 +18,45 @@ class Preprocessor:
 
         self.stemmer = nltk.stem.PorterStemmer()
         self.lemmatizer = nltk.stem.WordNetLemmatizer()
+
+    def preprocess_movie(self, movie: Dict[str, str]) -> Dict[str, List[str]]:
+        """
+        Preprocess the movie data.
+
+        Parameters
+        ----------
+        movie : Dict[str, str]
+            The movie data
+
+        Returns
+        ----------
+        Dict[str, List[str]]
+            The preprocessed movie data
+        """
+        movie["stars"] = self.name_preprocess(movie["stars"])
+        movie["genres"] = self.name_preprocess(movie["genres"])
+        movie["summaries"] = self.preprocess(movie["summaries"])
+        return movie
+
+    def name_preprocess(self, document: str) -> List[str]:
+        """
+        Preprocess the text of names, without normalizing, removing stopwords.
+
+        Parameters
+        ----------
+        documents : str
+            The document to be preprocessed
+
+        Returns
+        ----------
+        List[str]
+            The preprocessed documents.
+        """
+        document = document.lower()
+        document = self.remove_links(document)
+        document = self.remove_punctuations(document)
+        words = self.tokenize(document)
+        return words        
 
     def preprocess(self, document: str) -> List[str]:
         """
@@ -54,8 +93,7 @@ class Preprocessor:
         str
             The normalized text.
         """
-        text = text.lower()
-        text = self.stemmer.stem(text)
+        text = self.stemmer.stem(text, to_lowercase=True)
         text = self.lemmatizer.lemmatize(text)
         return text
 

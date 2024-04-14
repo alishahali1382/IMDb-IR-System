@@ -2,7 +2,10 @@ import time
 import os
 import json
 import copy
-from indexes_enum import Indexes
+from typing import Dict
+from Logic.core.preprocess import Preprocessor
+from Logic.utils import movies_dataset
+from Logic.core.indexer.indexes_enum import Indexes
 
 
 class Index:
@@ -86,7 +89,7 @@ class Index:
         list
             posting list of the word (you should return the list of document IDs that contain the word and ignore the tf)
         """
-        assert index_type in Indexes.__members__.keys(), 'Invalid index type'
+        assert index_type.upper() in Indexes.__members__.keys(), 'Invalid index type'
         
         try:
             return list(self.index[index_type][word].keys())
@@ -223,9 +226,6 @@ class Index:
             name of index we want to store (documents, stars, genres, summaries)
         """
 
-        if not os.path.exists(path):
-            os.makedirs(path)
-
         data = self.index
         if index_name is not None:
             if index_name not in self.index:
@@ -293,12 +293,12 @@ class Index:
                 continue
 
             for field in document[index_type]:
-                if check_word in field:
+                if check_word == field:
                     docs.append(document['id'])
                     break
 
-            # if we have found 3 documents with the word, we can break
-            if len(docs) == 3:
+            # if we have found 1000 documents with the word, we can break
+            if len(docs) == 1000:
                 break
 
         end = time.time()
@@ -331,5 +331,16 @@ class Index:
 # TODO: Run the class with needed parameters, then run check methods and finally report the results of check methods
 
 if __name__ == '__main__':
-    index = Index([])
+    preprocessor = Preprocessor()
+    index = Index([preprocessor.preprocess_movie(movie) for movie in movies_dataset])
+    index.store_index('index/stars_index.json', "stars")
+    index.store_index('index/genres_index.json', "genres")
+    index.store_index('index/summaries_index.json', "summaries")
+    # Checks:
     index.check_add_remove_is_correct()
+    assert index.check_if_index_loaded_correctly(Indexes.SUMMARIES.value, index.index[Indexes.SUMMARIES.value])
+    assert index.check_if_index_loaded_correctly(Indexes.GENRES.value, index.index[Indexes.GENRES.value])
+    assert index.check_if_index_loaded_correctly(Indexes.STARS.value, index.index[Indexes.STARS.value])
+    assert index.check_if_indexing_is_good(Indexes.SUMMARIES.value, 'good')
+    assert index.check_if_indexing_is_good(Indexes.GENRES.value, 'drama')
+    assert index.check_if_indexing_is_good(Indexes.STARS.value, 'tim')

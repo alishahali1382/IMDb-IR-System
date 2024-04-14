@@ -4,6 +4,7 @@ from Logic.core.spell_correction import SpellCorrection
 from Logic.core.snippet import Snippet
 from Logic.core.indexer.indexes_enum import Indexes, Index_types
 import json
+import os
 
 def load_movies_dataset():
     """
@@ -14,28 +15,42 @@ def load_movies_dataset():
     List[dict]
         The movies dataset
     """
+    def concat_shit(shit):
+        if shit is None:
+            return ""
+        return " ".join(shit)
+
     def load_movie():
+        path = "crawled_data/"
+        if os.getcwd().endswith("UI"):
+            path = f"../{path}"
+        
         current_file = 1
         while True:
             try:
-                with open(f"crawled_data/IMDB_crawled_{current_file:02}.json", "r") as f:
+                with open(f"{path}IMDB_crawled_{current_file:02}.json", "r") as f:
                     data = json.load(f)
                     for movie in data:
+                        movie["stars"] = concat_shit(movie["stars"])
+                        movie["genres"] = concat_shit(movie["genres"])
+                        movie["summaries"] = concat_shit(movie["summaries"])
                         yield movie
                 current_file += 1
             except FileNotFoundError as err:
+                if current_file == 1:
+                    raise Exception("No movie was found")
                 return
     
     return list(load_movie())
 
 movies_dataset = load_movies_dataset()
-all_documents = [" ".join(movie["summaries"]) for movie in movies_dataset]
-search_engine = SearchEngine()
-spell_correction_obj = SpellCorrection(all_documents)
+search_engine = None
+spell_correction_obj = None
 
-print(len(movies_dataset))
+print("Number of loaded movies:",len(movies_dataset))
 
 def correct_text(text: str) -> str:
+    global spell_correction_obj, movies_dataset
     """
     Correct the give query text, if it is misspelled using Jacard similarity
 
@@ -48,6 +63,11 @@ def correct_text(text: str) -> str:
     str
         The corrected form of the given text
     """
+    text = text.strip()
+    if spell_correction_obj is None:
+        all_documents = [movie["summaries"] for movie in movies_dataset]
+        spell_correction_obj = SpellCorrection(all_documents)
+
     return spell_correction_obj.spell_check(text)
 
 
@@ -59,6 +79,7 @@ def search(
     should_print=False,
     preferred_genre: str = None,
 ):
+    global search_engine
     """
     Finds relevant documents to query
 
@@ -82,13 +103,20 @@ def search(
     list
     Retrieved documents with snippet
     """
-    weights = ...  # TODO
+    if search_engine is None:
+        search_engine = SearchEngine()
+    weights = {
+        Indexes.STARS: weights[0],
+        Indexes.GENRES: weights[1],
+        Indexes.SUMMARIES: weights[2],
+    }
     return search_engine.search(
         query, method, weights, max_results=max_result_count, safe_ranking=True
     )
 
 
-def get_movie_by_id(id: str, movies_dataset: List[Dict[str, str]]) -> Dict[str, str]:
+def get_movie_by_id(id: str) -> Dict[str, str]:
+    global movies_dataset
     """
     Get movie by its id
 

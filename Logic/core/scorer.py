@@ -18,7 +18,7 @@ class Scorer:
         self.idf = {}
         self.N = number_of_documents
 
-    def get_list_of_documents(self,query):
+    def get_list_of_documents(self, query):
         """
         Returns a list of documents that contain at least one of the terms in the query.
 
@@ -104,8 +104,7 @@ class Scorer:
         dict
             A dictionary of the document IDs and their scores.
         """
-        scores= {}    
-        doc_method, query_method= method.split(r'\.')
+        doc_method, query_method= method.split('.')
         query_tfs = self.get_query_tfs(query)
         return {
             doc_id: self.get_vector_space_model_score(query, query_tfs, doc_id, doc_method, query_method)
@@ -134,9 +133,42 @@ class Scorer:
         float
             The Vector Space Model score of the document for the query.
         """
+        m = len(query)
 
-        #TODO
-        pass
+        doc_vectors = np.zeros(m)
+        query_vectors = np.zeros(m)
+        
+        for i, term in enumerate(query):
+            d_tf = self.index.get(term, {}).get(document_id, 0)
+            if d_tf == 0:
+                continue
+
+            if document_method[0] == 'l' and d_tf != 0:
+                d_tf = np.log10(d_tf) + 1
+
+            d_idf= 1
+            if document_method[1] == 't':
+                d_idf = self.get_idf(term)
+            doc_vectors[i] = d_tf * d_idf
+
+            q_tf= query_tfs[term]
+            if query_method[0] == 'l':
+                q_tf= np.log10(q_tf) + 1
+
+            q_idf= 1
+            if query_method[1] == 't':
+                q_idf= self.get_idf(term)
+
+            query_vectors[i] = q_tf * q_idf
+
+        if document_method[2]=='c':
+            doc_vectors /= np.linalg.norm(doc_vectors)
+
+        if query_method[2]=='c':
+            query_vectors /= np.linalg.norm(query_vectors)
+
+        return np.dot(query_vectors, doc_vectors)
+
 
     def compute_socres_with_okapi_bm25(self, query, average_document_field_length, document_lengths):
         """
@@ -157,9 +189,10 @@ class Scorer:
         dict
             A dictionary of the document IDs and their scores.
         """
-
-        # TODO
-        pass
+        return {
+            doc_id: self.get_okapi_bm25_score(query, doc_id, average_document_field_length, document_lengths)
+            for doc_id in self.get_list_of_documents(query)
+        }
 
     def get_okapi_bm25_score(self, query, document_id, average_document_field_length, document_lengths):
         """
@@ -182,6 +215,13 @@ class Scorer:
         float
             The Okapi BM25 score of the document for the query.
         """
-
-        # TODO
-        pass
+        k1 = 1.5
+        b = 0.75
+        score = 0
+        for term in query:
+            f = self.index[term].get(document_id, 0)
+            df = len(self.index[term])
+            doc_len = document_lengths[document_id]
+            idf = self.get_idf(term)
+            score += idf * (f * (k1 + 1)) / (f + k1 * (1 - b + b * doc_len / average_document_field_length))
+        return score

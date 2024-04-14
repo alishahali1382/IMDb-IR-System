@@ -51,7 +51,7 @@ def search_handling(
     search_method,
 ):
     if search_button:
-        corrected_query = utils.correct_text(search_term, utils.movies_dataset)
+        corrected_query = utils.correct_text(search_term)
 
         if corrected_query != search_term:
             st.warning(f"Your search terms were corrected to: {corrected_query}")
@@ -76,7 +76,7 @@ def search_handling(
 
             for i in range(len(result)):
                 card = st.columns([3, 1])
-                info = utils.get_movie_by_id(result[i][0], utils.movies_dataset)
+                info = utils.get_movie_by_id(result[i][0])
                 with card[0].container():
                     st.title(info["title"])
                     st.markdown(f"[Link to movie]({info['URL']})")

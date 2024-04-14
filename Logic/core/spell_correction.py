@@ -96,6 +96,7 @@ class SpellCorrection:
         list of str
             5 nearest words.
         """
+        print("Finding nearest words for:", word)
         word_shingles = self.shingle_word(word)
         candidates = []
         for candidate, candidate_shingles in self.all_shingled_words.items():
