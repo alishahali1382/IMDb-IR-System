@@ -1,7 +1,12 @@
 import json
+<<<<<<< HEAD
 from .indexes_enum import Indexes, Index_types
 from .index_reader import Index_reader
 from Logic.utils import movies_dataset
+=======
+from .indexes_enum import Indexes,Index_types
+from .index_reader import Index_reader
+>>>>>>> 4e164ae (add documentation)
 
 class DocumentLengthsIndex:
     def __init__(self, path='index/'):

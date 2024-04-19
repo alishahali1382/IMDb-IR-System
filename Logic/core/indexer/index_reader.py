@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 import os
 from typing import Dict
 from .indexes_enum import Indexes, Index_types
+=======
+from .indexes_enum import Indexes,Index_types
+>>>>>>> 4e164ae (add documentation)
 import json
 
 class Index_reader:
@@ -43,6 +47,4 @@ class Index_reader:
         
         with open(absolute_path, 'r') as file:
             return json.load(file)
-        
-    
         

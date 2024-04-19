@@ -1,10 +1,9 @@
 import json
 from typing import Dict, List
 import numpy as np
-from .preprocess import Preprocessor
-from .scorer import Scorer
-from .indexer.indexes_enum import Indexes, Index_types
-from .indexer.index_reader import Index_reader
+from .utility import Preprocessor, Scorer
+from .indexer import Indexes, Index_types, Index_reader
+
 
 
 class SearchEngine:
