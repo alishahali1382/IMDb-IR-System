@@ -1,7 +1,7 @@
 from typing import Dict, List
 from Logic.core.search import SearchEngine
-from Logic.core.spell_correction import SpellCorrection
-from Logic.core.snippet import Snippet
+from Logic.core.utility.spell_correction import SpellCorrection
+from Logic.core.utility.snippet import Snippet
 from Logic.core.indexer.indexes_enum import Indexes, Index_types
 import json
 import os
@@ -78,6 +78,9 @@ def search(
     weights: list = [0.3, 0.3, 0.4],
     should_print=False,
     preferred_genre: str = None,
+    unigram_smoothing=None,
+    alpha=None,
+    lamda=None,
 ):
     global search_engine
     """
@@ -94,7 +97,7 @@ def search(
     where: when mode ='detailed', when we want search query
             in title or text not both of them at the same time.
 
-    method: 'ltn.lnn' or 'ltc.lnc' or 'OkapiBM25'
+    method: 'ltn.lnn' or 'ltc.lnc' or 'OkapiBM25' or 'unigram'
 
     preferred_genre: A list containing preference rates for each genre. If None, the preference rates are equal.
 
@@ -111,7 +114,7 @@ def search(
         Indexes.SUMMARIES: weights[2],
     }
     return search_engine.search(
-        query, method, weights, max_results=max_result_count, safe_ranking=True
+        query, method, weights, max_results=max_result_count, safe_ranking=True, smoothing_method=unigram_smoothing, alpha=alpha, lamda=lamda
     )
 
 

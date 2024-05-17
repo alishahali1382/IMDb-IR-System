@@ -1,6 +1,6 @@
 import re
 from typing import List, Tuple
-from Logic.core.preprocess import Preprocessor
+from Logic.core.utility.preprocess import Preprocessor
 
 preprocessor = Preprocessor()
 

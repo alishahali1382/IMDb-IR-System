@@ -4,7 +4,6 @@ import json
 import copy
 from typing import Dict
 from Logic.core.utility.preprocess import Preprocessor
-from Logic.utils import movies_dataset
 from Logic.core.indexer.indexes_enum import Indexes
 
 
@@ -331,6 +330,7 @@ class Index:
 # TODO: Run the class with needed parameters, then run check methods and finally report the results of check methods
 
 if __name__ == '__main__':
+    from Logic.utils import movies_dataset
     preprocessor = Preprocessor()
     index = Index([preprocessor.preprocess_movie(movie) for movie in movies_dataset])
     index.store_index('index/stars_index.json', "stars")

@@ -1,10 +1,8 @@
 import json
 from .indexes_enum import Indexes, Index_types
-from .index_reader import Index_reader
-from Logic.utils import movies_dataset
 
 class DocumentLengthsIndex:
-    def __init__(self, path='index/'):
+    def __init__(self, movies_dataset, path='index/'):
         """
         Initializes the DocumentLengthsIndex class.
 
@@ -65,5 +63,6 @@ class DocumentLengthsIndex:
     
 
 if __name__ == '__main__':
-    document_lengths_index = DocumentLengthsIndex()
+    from Logic.utils import movies_dataset
+    document_lengths_index = DocumentLengthsIndex(movies_dataset)
     print('Document lengths index stored successfully.')
