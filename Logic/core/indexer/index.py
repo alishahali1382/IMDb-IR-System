@@ -3,7 +3,7 @@ import os
 import json
 import copy
 from typing import Dict
-from Logic.core.preprocess import Preprocessor
+from Logic.core.utility.preprocess import Preprocessor
 from Logic.utils import movies_dataset
 from Logic.core.indexer.indexes_enum import Indexes
 
