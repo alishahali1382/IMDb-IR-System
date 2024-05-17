@@ -2,14 +2,10 @@ import time
 import os
 import json
 import copy
-<<<<<<< HEAD
 from typing import Dict
-from Logic.core.preprocess import Preprocessor
+from Logic.core.utility.preprocess import Preprocessor
 from Logic.utils import movies_dataset
 from Logic.core.indexer.indexes_enum import Indexes
-=======
-from .indexes_enum import Indexes
->>>>>>> 4e164ae (add documentation)
 
 
 class Index:
