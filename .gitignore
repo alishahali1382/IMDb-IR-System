@@ -1,5 +1,6 @@
 .vscode
 tt*.json
+wandb
 
 # git ignore file for python projects
 # Byte-compiled / optimized / DLL files
