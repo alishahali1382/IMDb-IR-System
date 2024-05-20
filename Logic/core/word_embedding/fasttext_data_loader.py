@@ -2,6 +2,7 @@ import pandas as pd
 from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder
 
+__all__ = ['FastTextDataLoader']
 
 class FastTextDataLoader:
     """
@@ -10,6 +11,7 @@ class FastTextDataLoader:
     It takes the file path to a data source containing movie information (synopses, summaries, reviews, titles, genres) as input.
     The class provides methods to read the data into a pandas DataFrame, pre-process the text data, and create training data (features and labels)
     """
+
     def __init__(self, file_path):
         """
         Initializes the FastTextDataLoader class with the file path to the data source.
@@ -20,7 +22,6 @@ class FastTextDataLoader:
             The path to the file containing movie information.
         """
         self.file_path = file_path
-        pass
 
     def read_data_to_df(self):
         """
@@ -34,7 +35,8 @@ class FastTextDataLoader:
         ----------
             pd.DataFrame: A pandas DataFrame containing movie information (synopses, summaries, reviews, titles, genres).
         """
-        pass
+        df = pd.read_csv(self.file_path)
+        return df
 
     def create_train_data(self):
         """
@@ -43,6 +45,8 @@ class FastTextDataLoader:
         Returns:
             tuple: A tuple containing two NumPy arrays: X (preprocessed text data) and y (encoded genre labels).
         """
-        pass
-
-
+        df = self.read_data_to_df()
+        X = df['review'].to_numpy()
+        label_encoder = LabelEncoder()
+        y = label_encoder.fit_transform(df['sentiment'].to_numpy())
+        return X, y
