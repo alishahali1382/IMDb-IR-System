@@ -1,6 +1,7 @@
 .vscode
 tt*.json
 wandb
+training_data
 
 # git ignore file for python projects
 # Byte-compiled / optimized / DLL files
