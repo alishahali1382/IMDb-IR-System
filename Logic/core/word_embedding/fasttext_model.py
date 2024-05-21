@@ -6,11 +6,16 @@ import numpy as np
 from tqdm import tqdm
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer, PorterStemmer
 from scipy.spatial import distance
 
 from .fasttext_data_loader import FastTextDataLoader
 
 __all__ = ['FastText']
+
+stemmer = PorterStemmer()
+lemmatizer = WordNetLemmatizer()
+
 
 def preprocess_text(text: str, minimum_length=1, stopword_removal=True, stopwords_domain=[], lower_case=True,
                        punctuation_removal=True):
@@ -41,6 +46,7 @@ def preprocess_text(text: str, minimum_length=1, stopword_removal=True, stopword
         text = text.translate(str.maketrans('', '', string.punctuation))
 
     tokens = word_tokenize(text)
+    tokens = [lemmatizer.lemmatize(stemmer.stem(word)) for word in tokens]
 
     if stopword_removal:
         stop_words = set(stopwords.words('english')).union(set(stopwords_domain))
@@ -86,7 +92,7 @@ class FastText:
             The texts to train the FastText model.
         """
         with open("fasttext_train.txt", "w") as f:
-            for text in texts:
+            for text in tqdm(texts):
                 f.write(self.preprocessor(text) + "\n")
 
         self.model = fasttext.train_unsupervised("fasttext_train.txt", model=self.method)
@@ -203,7 +209,7 @@ if __name__ == "__main__":
     ft_model = FastText(preprocessor=preprocess_text, method='skipgram')
     # ft_model = FastText(method='skipgram')
 
-    path = './training_data/IMDB_Dataset.csv'
+    path = './training_data/IMDB_crawled.json'
     ft_data_loader = FastTextDataLoader(path)
 
     X, _ = ft_data_loader.create_train_data()
@@ -220,6 +226,6 @@ if __name__ == "__main__":
 
     print(10 * "*" + "Analogy" + 10 * "*")
     word1 = "man"
-    word2 = "king"
-    word3 = "woman"
+    word2 = "woman"
+    word3 = "boy"
     print(f"Similarity between {word1} and {word2} is like similarity between {word3} and {ft_model.analogy(word1, word2, word3)}")
