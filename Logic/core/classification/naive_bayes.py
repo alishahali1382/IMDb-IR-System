@@ -79,8 +79,10 @@ class NaiveBayes(BasicClassifier):
 # F1 Accuracy : 85%
 if __name__ == '__main__':
     """
-    First, find the embeddings of the revies using the CountVectorizer, then fit the model with the training data.
+    First, find the embeddings of the reviews using the CountVectorizer, then fit the model with the training data.
     Finally, predict the test data and print the classification report
     You can use scikit-learn's CountVectorizer to find the embeddings.
     """
+    data_loader = ReviewLoader('training_data/IMDB_Dataset.csv')
+    
 

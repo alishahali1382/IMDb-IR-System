@@ -4,7 +4,7 @@ import torch.nn as nn
 from sklearn.metrics import classification_report
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .data_loader import ReviewLoader
 from .basic_classifier import BasicClassifier
@@ -31,7 +31,11 @@ class MLPModel(nn.Module):
         self.network = nn.Sequential(
             nn.Linear(in_features, 2048),
             nn.ReLU(),
-            nn.Linear(2048, 512),
+            nn.Linear(2048, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
             nn.ReLU(),
             nn.Linear(512, 128),
             nn.ReLU(),
@@ -70,7 +74,7 @@ class DeepModelClassifier(BasicClassifier):
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.device = 'mps' if torch.backends.mps.is_available else 'cpu'
         self.device = 'cuda' if torch.cuda.is_available() else self.device
-        self.model.to(self.device)
+        self.model = self.model.to(self.device)
         print(f"Using device: {self.device}")
 
     def fit(self, x, y):
@@ -87,6 +91,35 @@ class DeepModelClassifier(BasicClassifier):
         -------
         self
         """
+        train_dataset = ReviewDataSet(x, y)
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+
+        for epoch in range(self.num_epochs):
+            self.model.train()
+            epoch_loss = 0
+
+            for embeddings, labels in tqdm(train_loader):
+                embeddings, labels = embeddings.to(self.device), labels.to(self.device)
+
+                self.optimizer.zero_grad()
+                outputs = self.model(embeddings)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
+
+                epoch_loss += loss.item()
+
+            print(f'Epoch {epoch+1}/{self.num_epochs}, Loss: {epoch_loss/len(train_loader)}')
+
+            if self.test_loader:
+                eval_loss, predicted_labels, true_labels, f1_macro = self._eval_epoch(self.test_loader, self.model)
+                print(f'Evaluation Loss: {eval_loss}, F1 Macro: {f1_macro}')
+
+                if f1_macro > getattr(self, 'best_f1_macro', 0):
+                    self.best_f1_macro = f1_macro
+                    self.best_model = self.model.state_dict()
+
+        self.model.load_state_dict(self.best_model)
         return self
 
     def predict(self, x):
@@ -101,14 +134,26 @@ class DeepModelClassifier(BasicClassifier):
         predicted_labels: list
             The predicted labels
         """
-        pass
+        self.model.eval()
+        test_dataset = ReviewDataSet(x, np.zeros(len(x)))  # Dummy labels
+        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
 
-    def _eval_epoch(self, dataloader: torch.utils.data.DataLoader, model):
+        all_preds = []
+        with torch.no_grad():
+            for embeddings, _ in test_loader:
+                embeddings = embeddings.to(self.device)
+                outputs = self.model(embeddings)
+                _, predicted = torch.max(outputs, 1)
+                all_preds.extend(predicted.cpu().numpy())
+
+        return all_preds
+
+    def _eval_epoch(self, dataloader: DataLoader, model):
         """
         Evaluate the model on the given dataloader. used for validation and test
         Parameters
         ----------
-        dataloader: torch.utils.data.DataLoader
+        dataloader: DataLoader
         Returns
         -------
         eval_loss: float
@@ -120,7 +165,24 @@ class DeepModelClassifier(BasicClassifier):
         f1_score_macro: float
             The f1 score on the given dataloader
         """
-        pass
+        model.eval()
+        epoch_loss = 0
+        all_preds = []
+        all_labels = []
+
+        with torch.no_grad():
+            for embeddings, labels in dataloader:
+                embeddings, labels = embeddings.to(self.device), labels.to(self.device)
+                outputs = model(embeddings)
+                loss = self.criterion(outputs, labels)
+                epoch_loss += loss.item()
+
+                _, predicted = torch.max(outputs, 1)
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+
+        f1_macro = f1_score(all_labels, all_preds, average='macro')
+        return epoch_loss / len(dataloader), all_preds, all_labels, f1_macro
 
     def set_test_dataloader(self, X_test, y_test):
         """
@@ -136,7 +198,9 @@ class DeepModelClassifier(BasicClassifier):
         self
             Returns self
         """
-        pass
+        test_dataset = ReviewDataSet(X_test, y_test)
+        self.test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
+        return self
 
     def prediction_report(self, x, y):
         """
@@ -152,11 +216,21 @@ class DeepModelClassifier(BasicClassifier):
         str
             The classification report
         """
-        pass
+        preds = self.predict(x)
+        return classification_report(y, preds)
 
 # F1 Accuracy : 79%
 if __name__ == '__main__':
     """
     Fit the model with the training data and predict the test data, then print the classification report
     """
-    pass
+    review_loader = ReviewLoader('training_data/IMDB_Dataset.csv')
+    review_loader.load_data()
+    X_train, X_test, y_train, y_test = review_loader.split_data(test_data_ratio=0.2)
+
+    classifier = DeepModelClassifier(in_features=100, num_classes=2, batch_size=128, num_epochs=100)
+    classifier.set_test_dataloader(X_test, y_test)
+    classifier.fit(X_train, y_train)
+
+    report = classifier.prediction_report(X_test, y_test)
+    print(report)

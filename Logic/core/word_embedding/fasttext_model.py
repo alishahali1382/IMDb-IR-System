@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer, PorterStemmer
+from nltk.stem import WordNetLemmatizer
 from scipy.spatial import distance
 
 from .fasttext_data_loader import FastTextDataLoader
@@ -14,6 +14,7 @@ from .fasttext_data_loader import FastTextDataLoader
 __all__ = ['FastText']
 
 lemmatizer = WordNetLemmatizer()
+stop_words = set(stopwords.words('english'))
 
 
 def preprocess_text(text: str, minimum_length=1, stopword_removal=True, stopwords_domain=[], lower_case=True,
@@ -48,8 +49,8 @@ def preprocess_text(text: str, minimum_length=1, stopword_removal=True, stopword
     tokens = [lemmatizer.lemmatize(word) for word in tokens]
 
     if stopword_removal:
-        stop_words = set(stopwords.words('english')).union(set(stopwords_domain))
-        tokens = [word for word in tokens if word not in stop_words]
+        new_stop_words = stop_words.union(set(stopwords_domain))
+        tokens = [word for word in tokens if word not in new_stop_words]
 
     tokens = [word for word in tokens if len(word) >= minimum_length]
 
@@ -104,18 +105,14 @@ class FastText:
         ----------
         query : str
             The query to generate an embedding for.
-        tf_idf_vectorizer : sklearn.feature_extraction.text.TfidfVectorizer
-            The TfidfVectorizer to transform the query.
-        do_preprocess : bool, optional
-            Whether to preprocess the query.
 
         Returns
         -------
         np.ndarray
             The embedding for the query.
         """
-        query = self.preprocessor(query)
-        return self.model.get_sentence_vector(query)
+        tokens = list(map(self.preprocessor, query.split()))
+        return np.mean([self.model.get_word_vector(token) for token in tokens], axis=0)
 
     def analogy(self, word1, word2, word3):
         """

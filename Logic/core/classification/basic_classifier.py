@@ -6,7 +6,7 @@ from ..word_embedding.fasttext_model import FastText
 
 class BasicClassifier:
     def __init__(self):
-        raise NotImplementedError()
+        pass
 
     def fit(self, x, y):
         raise NotImplementedError()
@@ -29,5 +29,9 @@ class BasicClassifier:
         float
             The percentage of positive reviews
         """
-        pass
+        positive_reviews = 0
+        for sentence in sentences:
+            if self.predict(sentence) == 1:
+                positive_reviews += 1
+        return positive_reviews / len(sentences)
 

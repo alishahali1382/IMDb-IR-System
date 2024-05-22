@@ -4,7 +4,7 @@ import tqdm
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from ..word_embedding.fasttext_model import FastText
+from ..word_embedding.fasttext_model import FastText, preprocess_text
 
 
 class ReviewLoader:
@@ -20,13 +20,22 @@ class ReviewLoader:
         Load the data from the csv file and preprocess the text. Then save the normalized tokens and the sentiment labels.
         Also, load the fasttext model.
         """
-        pass
+        self.fasttext_model = FastText(preprocess_text)
+        self.fasttext_model.load_model()
+        reviews_data = pd.read_csv(self.file_path)
+        self.review_tokens = reviews_data['review'].apply(preprocess_text).tolist()
+        label_encoder = LabelEncoder()
+        self.sentiments = label_encoder.fit_transform(reviews_data['sentiment'])
+        print("Successfully loaded and preprocessed reviews data")
 
     def get_embeddings(self):
         """
         Get the embeddings for the reviews using the fasttext model.
         """
-        pass
+        self.embeddings = np.array([
+            self.fasttext_model.get_query_embedding(review)
+            for review in tqdm.tqdm(self.review_tokens)
+        ])
 
     def split_data(self, test_data_ratio=0.2):
         """
@@ -42,4 +51,6 @@ class ReviewLoader:
             Return the training and testing data for the embeddings and the sentiments.
             in the order of x_train, x_test, y_train, y_test
         """
-        pass
+        self.get_embeddings()
+        X_train, X_test, y_train, y_test = train_test_split(self.embeddings, self.sentiments, test_size=test_data_ratio)
+        return X_train, X_test, y_train, y_test
