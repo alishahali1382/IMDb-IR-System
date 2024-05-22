@@ -13,7 +13,6 @@ from .fasttext_data_loader import FastTextDataLoader
 
 __all__ = ['FastText']
 
-stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
 
 
@@ -46,7 +45,7 @@ def preprocess_text(text: str, minimum_length=1, stopword_removal=True, stopword
         text = text.translate(str.maketrans('', '', string.punctuation))
 
     tokens = word_tokenize(text)
-    tokens = [lemmatizer.lemmatize(stemmer.stem(word)) for word in tokens]
+    tokens = [lemmatizer.lemmatize(word) for word in tokens]
 
     if stopword_removal:
         stop_words = set(stopwords.words('english')).union(set(stopwords_domain))
@@ -95,7 +94,7 @@ class FastText:
             for text in tqdm(texts):
                 f.write(self.preprocessor(text) + "\n")
 
-        self.model = fasttext.train_unsupervised("fasttext_train.txt", model=self.method)
+        self.model = fasttext.train_unsupervised("fasttext_train.txt", model=self.method, thread=10)
 
     def get_query_embedding(self, query):
         """
