@@ -202,8 +202,9 @@ class SearchEngine:
             The parameter used in some smoothing methods to balance between the document
             probability and the collection probability. Defaults to 0.5.
         """
-        # TODO
-        pass
+        for field in weights:
+            scorer = Scorer(self.document_indexes[field].index, self.metadata_index.index.get("document_count"))
+            scores[field] = scorer.compute_score_with_unigram_model(query, smoothing_method, self.document_lengths_index[field].index, alpha, lamda)
 
     def merge_scores(self, scores1, scores2):
         """

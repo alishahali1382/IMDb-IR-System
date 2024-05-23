@@ -9,6 +9,7 @@ import random
 from Logic.core.utility.snippet import Snippet
 from Logic.core.link_analysis.analyzer import LinkAnalyzer
 from Logic.core.indexer.index_reader import Index_reader, Indexes
+from Logic.utils import movies_dataset
 
 snippet_obj = Snippet()
 
@@ -24,18 +25,20 @@ class color(Enum):
 
 
 def get_top_x_movies_by_rank(x: int, results: list):
-    path = "../Logic/core/index/"  # Link to the index folder
-    document_index = Index_reader(path, Indexes.DOCUMENTS)
     corpus = []
     root_set = []
-    for movie_id, movie_detail in document_index.index.items():
+    document_index = {
+        movie['id']: movie
+        for movie in movies_dataset
+    }
+    for movie_id, movie_detail in document_index.items():
         movie_title = movie_detail["title"]
         stars = movie_detail["stars"]
         corpus.append({"id": movie_id, "title": movie_title, "stars": stars})
 
     for element in results:
         movie_id = element[0]
-        movie_detail = document_index.index[movie_id]
+        movie_detail = document_index[movie_id]
         movie_title = movie_detail["title"]
         stars = movie_detail["stars"]
         root_set.append({"id": movie_id, "title": movie_title, "stars": stars})
