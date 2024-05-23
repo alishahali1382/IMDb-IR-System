@@ -9,7 +9,7 @@ import random
 from Logic.core.utility.snippet import Snippet
 from Logic.core.link_analysis.analyzer import LinkAnalyzer
 from Logic.core.indexer.index_reader import Index_reader, Indexes
-from Logic.utils import movies_dataset
+from Logic.utils import main_movies_dataset as movies_dataset
 
 snippet_obj = Snippet()
 

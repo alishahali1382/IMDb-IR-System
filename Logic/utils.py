@@ -6,7 +6,7 @@ from Logic.core.indexer.indexes_enum import Indexes, Index_types
 import json
 import os
 
-def load_movies_dataset():
+def load_movies_dataset(concat_fuck = True):
     """
     Load the movies dataset
 
@@ -17,8 +17,8 @@ def load_movies_dataset():
     """
     def concat_shit(shit):
         if shit is None:
-            return ""
-        return " ".join(shit)
+            return "" if concat_fuck else []
+        return " ".join(shit) if concat_fuck else shit
 
     def load_movie():
         path = "crawled_data/"
@@ -31,7 +31,7 @@ def load_movies_dataset():
                 with open(f"{path}IMDB_crawled_{current_file:02}.json", "r") as f:
                     data = json.load(f)
                     for movie in data:
-                        movie["stars"] = concat_shit(movie["stars"])
+                        movie["stars"] = movie["stars"]
                         movie["genres"] = concat_shit(movie["genres"])
                         movie["summaries"] = concat_shit(movie["summaries"])
                         yield movie
@@ -44,6 +44,7 @@ def load_movies_dataset():
     return list(load_movie())
 
 movies_dataset = load_movies_dataset()
+main_movies_dataset = load_movies_dataset(False)
 search_engine = None
 spell_correction_obj = None
 

@@ -1,5 +1,3 @@
-from .analyzer import *
-from .graph import *
+from .analyzer import LinkAnalyzer
 
-
-__all__ = [k for k in globals().keys() if not k.startswith("_")]
+__all__ = ['LinkAnalyzer']
