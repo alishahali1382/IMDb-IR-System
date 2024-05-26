@@ -36,6 +36,7 @@ class ReviewLoader:
             self.fasttext_model.get_query_embedding(review)
             for review in tqdm.tqdm(self.review_tokens)
         ])
+        print("Successfully generated embeddings")
 
     def split_data(self, test_data_ratio=0.2):
         """
