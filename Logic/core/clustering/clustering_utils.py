@@ -275,25 +275,33 @@ class ClusteringUtils:
         --------
         None
         """
+        metrics = ClusteringMetrics()
         silhouette_scores = []
         purity_scores = []
         # Calculating Silhouette Scores and Purity Scores for different values of k
         for k in k_values:
-            # TODO
-
             # Using implemented metrics in clustering_metrics, get the score for each k in k-means clustering
             # and visualize it.
-            # TOsDO
-            pass
+            kmeans = KMeans(n_clusters=k)
+            cluster_indices = kmeans.fit_predict(embeddings)
+            silhouette_scores.append(silhouette_score(embeddings, cluster_indices))
+            purity_scores.append(metrics.purity_score(true_labels, cluster_indices))
 
         # Plotting the scores
-        # TODO
+        plt.figure(figsize=(8, 6))
+        plt.plot(k_values, silhouette_scores, label='Silhouette Score')
+        plt.plot(k_values, purity_scores, label='Purity Score')
+        plt.xlabel('Number of Clusters (k)')
+        plt.ylabel('Score')
+        plt.title('K-means')
+        plt.legend()
 
         # Logging the plot to wandb
         if project_name and run_name:
             import wandb
             run = wandb.init(project=project_name, name=run_name)
-            wandb.log({"Cluster Scores": plt})
+            wandb.log({"Cluster Scores": wandb.Image(plt)})
+        # plt.show()
 
     def visualize_elbow_method_wcss(self, embeddings: List, k_values: List[int], project_name: str, run_name: str):
         """ This function implements the elbow method to determine the optimal number of clusters for K-means clustering based on the Within-Cluster Sum of Squares (WCSS).
@@ -327,17 +335,20 @@ class ClusteringUtils:
         # Compute WCSS values for different K values
         wcss_values = []
         for k in k_values:
-            # TODO
-            pass
+            kmeans = KMeans(n_clusters=k)
+            kmeans.fit(embeddings)
+            wcss_values.append(kmeans.inertia_)
 
         # Plot the elbow method
-        # TODO
+        plt.figure(figsize=(8, 6))
+        plt.plot(k_values, wcss_values)
+        plt.title('Elbow Method')
+        plt.xlabel('Number of Clusters (k)')
+        plt.ylabel('WCSS')
 
         # Log the plot to wandb
         wandb.log({"Elbow Method": wandb.Image(plt)})
-
         plt.close()
-
 
 if __name__ == '__main__':
     cu = ClusteringUtils()
@@ -346,8 +357,13 @@ if __name__ == '__main__':
         np.random.normal(loc=(10, 5), scale=(3, 1.5), size=(100, 2)),
         np.random.normal(loc=(-30, 40), scale=(6, 30), size=(100, 2))
     ))
+    true_labels = np.concatenate((np.zeros(100), np.ones(100), np.full(100, 2)))
     
     cu.visualize_kmeans_clustering_wandb(data, 3, 'test', 'test')
-    cu.wandb_plot_hierarchical_clustering_dendrogram(data, 'test', 'average', 'test')
-    # cu.visualize_elbow_method_wcss(data, [2, 3, 4, 5], 'test', 'test')
+    cu.plot_kmeans_cluster_scores(data, true_labels, range(2, 9), 'kmeans-scores', 'test')
+    cu.visualize_elbow_method_wcss(data, [2, 3, 4, 5], 'elbow', 'test')
+    cu.wandb_plot_hierarchical_clustering_dendrogram(data, 'test', 'average', 'average-link')
+    cu.wandb_plot_hierarchical_clustering_dendrogram(data, 'test', 'ward', 'ward-link')
+    cu.wandb_plot_hierarchical_clustering_dendrogram(data, 'test', 'complete', 'complete-link')
+    cu.wandb_plot_hierarchical_clustering_dendrogram(data, 'test', 'single', 'single-link')
     print('Done!')
