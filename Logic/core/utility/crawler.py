@@ -15,38 +15,6 @@ from typing import List, Optional, Set
 import requests
 from bs4 import BeautifulSoup
 
-dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": True,
-        "formatters": {
-            "detailed": {
-                "format": "[{asctime}][{levelname}][{threadName:<23}] {message}",
-                "style": "{",
-            }
-        },
-        "handlers": {
-            "file": {
-                "class": "logging.FileHandler",
-                "filename": "crawler.log",
-                "formatter": "detailed",
-            },
-            "file_error": {
-                "class": "logging.FileHandler",
-                "filename": "crawler_error.log",
-                "formatter": "detailed",
-                "level": "ERROR",
-            },
-            "console": {
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stderr",
-                "formatter": "detailed",
-            },
-        },
-        "root": {"level": "INFO", "handlers": ["file", "console", "file_error"]},
-    }
-)
-
 
 class IMDbCrawler:
     """
@@ -806,6 +774,37 @@ def main():
 
 
 if __name__ == "__main__":
+    dictConfig({
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "detailed": {
+                "format": "[{asctime}][{levelname}][{threadName:<23}] {message}",
+                "style": "{",
+            }
+        },
+        "handlers": {
+            "file": {
+                "class": "logging.FileHandler",
+                "filename": "crawler.log",
+                "formatter": "detailed",
+            },
+            "file_error": {
+                "class": "logging.FileHandler",
+                "filename": "crawler_error.log",
+                "formatter": "detailed",
+                "level": "ERROR",
+            },
+            "console": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+                "formatter": "detailed",
+            },
+        },
+        "root": {"level": "INFO", "handlers": ["file", "console", "file_error"]},
+    })
+
+
     main()
     # id="tt0903747"  # breaking bad
     # id="tt0120737"  # LOTR

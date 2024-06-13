@@ -1,11 +1,13 @@
+from .BertFinetuner_mask import BERTFinetuner
+
 # Instantiate the class
-bert_finetuner = BERTFinetuner('path/to/your/file.json', top_n_genres=5)
+bert_finetuner = BERTFinetuner('training_data/IMDB_crawled.json', top_n_genres=5)
 
 # Load the dataset
 bert_finetuner.load_dataset()
 
 # Preprocess genre distribution
-bert_finetuner.preprocess_genre_distribution()
+bert_finetuner.preprocess_genre_distribution(show_plot=False)
 
 # Split the dataset
 bert_finetuner.split_dataset()
