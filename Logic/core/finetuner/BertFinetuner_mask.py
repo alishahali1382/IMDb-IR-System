@@ -2,15 +2,13 @@ from itertools import chain
 from collections import Counter
 import json
 import torch
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset
 from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
+from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-
 from torch.nn import BCEWithLogitsLoss
 
 class CustomTrainer(Trainer):
@@ -39,7 +37,6 @@ class BERTFinetuner:
         self.file_path = file_path
         self.top_n_genres = top_n_genres
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        self.label_encoder = LabelEncoder()
 
     def load_dataset(self):
         """
@@ -86,7 +83,7 @@ class BERTFinetuner:
             test_size (float): The proportion of the dataset to include in the test split.
             val_size (float): The proportion of the dataset to include in the validation split.
         """
-        self.mlb = MultiLabelBinarizer(classes=self.mlb.classes_)  # Ensure using the same classes as during preprocessing
+        self.mlb = MultiLabelBinarizer(classes=self.mlb.classes_)
         encoded_genres = self.mlb.fit_transform(self.genres)
         
         train_summaries, temp_summaries, train_genres, temp_genres = train_test_split(
@@ -94,12 +91,12 @@ class BERTFinetuner:
         )
         
         val_summaries, test_summaries, val_genres, test_genres = train_test_split(
-            temp_summaries, temp_genres, test_size=test_size / (test_size + val_size), stratify=temp_genres
+            temp_summaries, temp_genres, test_size=test_size / (test_size + val_size)
         )
 
-        self.train_encodings = self.tokenizer(train_summaries, truncation=True, padding=True)
-        self.val_encodings = self.tokenizer(val_summaries, truncation=True, padding=True)
-        self.test_encodings = self.tokenizer(test_summaries, truncation=True, padding=True)
+        self.train_encodings = self.tokenizer(train_summaries, truncation=True, padding='max_length')
+        self.val_encodings = self.tokenizer(val_summaries, truncation=True, padding='max_length')
+        self.test_encodings = self.tokenizer(test_summaries, truncation=True, padding='max_length')
 
         self.train_labels = train_genres
         self.val_labels = val_genres
@@ -140,7 +137,7 @@ class BERTFinetuner:
             per_device_eval_batch_size=batch_size,
             warmup_steps=warmup_steps,
             weight_decay=weight_decay,
-            logging_dir='./bert/logs',
+            # logging_dir='./bert/logs',
             logging_steps=10,
             eval_strategy='epoch',
             report_to=None
@@ -157,8 +154,8 @@ class BERTFinetuner:
 
         trainer.train()
         self.model = model
-  
-    def compute_metrics(self, pred):
+
+    def compute_metrics(self, pred: EvalPrediction):
         """
         Compute evaluation metrics based on the predictions.
 
@@ -202,7 +199,7 @@ class BERTFinetuner:
         self.tokenizer.save_pretrained(model_name)
 
 
-class IMDbDataset(torch.utils.data.Dataset):
+class IMDbDataset(Dataset):
     """
     A PyTorch dataset for the movie genre classification task.
     """
