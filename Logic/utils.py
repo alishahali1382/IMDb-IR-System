@@ -1,10 +1,11 @@
-from typing import Dict, List
+import json
+import os
+from typing import Dict
+
 from Logic.core.search import SearchEngine
 from Logic.core.utility.spell_correction import SpellCorrection
 from Logic.core.utility.snippet import Snippet
-from Logic.core.indexer.indexes_enum import Indexes, Index_types
-import json
-import os
+from Logic.core.indexer.indexes_enum import Indexes
 
 def load_movies_dataset(concat_fuck = True):
     """
@@ -143,16 +144,10 @@ def get_movie_by_id(id: str) -> Dict[str, str]:
         "URL": "https://www.imdb.com/title/tt0111161/",
         "Cast": ["Morgan Freeman", "Tim Robbins"],
         "Genres": ["Drama", "Crime"],
-        "Image_URL": "https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_.jpg",
     }
     for movie in movies_dataset:
         if movie["id"] != id:
             continue
-        movie["Image_URL"] = (
-            "https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_.jpg"  # a default picture for selected movies
-        )
-        movie["URL"] = (
-            f"https://www.imdb.com/title/{movie['id']}"  # The url pattern of IMDb movies
-        )
+        movie["URL"] = f"https://www.imdb.com/title/{movie['id']}"
         return movie
     return default

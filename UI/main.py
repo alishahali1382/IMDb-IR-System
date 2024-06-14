@@ -8,13 +8,19 @@ from enum import Enum
 import random
 from Logic.core.utility.snippet import Snippet
 from Logic.core.link_analysis.analyzer import LinkAnalyzer
-from Logic.core.indexer.index_reader import Index_reader, Indexes
 from Logic.utils import main_movies_dataset as movies_dataset
+from UI.poster_handler import get_movie_poster
 
 snippet_obj = Snippet()
 
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-class color(Enum):
+local_css("styles.css")
+
+
+class Color(Enum):
     RED = "#FF0000"
     GREEN = "#00FF00"
     BLUE = "#0000FF"
@@ -27,10 +33,7 @@ class color(Enum):
 def get_top_x_movies_by_rank(x: int, results: list):
     corpus = []
     root_set = []
-    document_index = {
-        movie['id']: movie
-        for movie in movies_dataset
-    }
+    document_index = {movie['id']: movie for movie in movies_dataset}
     for movie_id, movie_detail in document_index.items():
         movie_title = movie_detail["title"]
         stars = movie_detail["stars"]
@@ -42,6 +45,7 @@ def get_top_x_movies_by_rank(x: int, results: list):
         movie_title = movie_detail["title"]
         stars = movie_detail["stars"]
         root_set.append({"id": movie_id, "title": movie_title, "stars": stars})
+
     analyzer = LinkAnalyzer(root_set=root_set)
     analyzer.expand_graph(corpus=corpus)
     actors, movies = analyzer.hits(max_result=x)
@@ -59,13 +63,13 @@ def get_summary_with_snippet(movie_info, query):
                 current_word_without_star = current_word[3:-3]
                 summary = summary.lower().replace(
                     current_word_without_star,
-                    f"<b><font size='4' color={random.choice(list(color)).value}>{current_word_without_star}</font></b>",
+                    f"<b><font size='4' color={random.choice(list(Color)).value}>{current_word_without_star}</font></b>",
                 )
     return summary
 
 
 def search_time(start, end):
-    st.success("Search took: {:.6f} milli-seconds".format((end - start) * 1e3))
+    st.success("Search took: {:.6f} milliseconds".format((end - start) * 1e3))
 
 
 def search_handling(
@@ -88,7 +92,7 @@ def search_handling(
             st.markdown(f"**Top {num_filter_results} Actors:**")
             actors_ = ", ".join(top_actors)
             st.markdown(
-                f"<span style='color:{random.choice(list(color)).value}'>{actors_}</span>",
+                f"<span style='color:{random.choice(list(Color)).value}'>{actors_}</span>",
                 unsafe_allow_html=True,
             )
             st.divider()
@@ -96,9 +100,9 @@ def search_handling(
         st.markdown(f"**Top {num_filter_results} Movies:**")
         for i in range(len(top_movies)):
             card = st.columns([3, 1])
-            info = utils.get_movie_by_id(top_movies[i], utils.movies_dataset)
+            info = utils.get_movie_by_id(top_movies[i])
             with card[0].container():
-                st.title(info["title"])
+                st.header(info["title"])
                 st.markdown(f"[Link to movie]({info['URL']})")
                 st.markdown(
                     f"<b><font size = '4'>Summary:</font></b> {get_summary_with_snippet(info, search_term)}",
@@ -107,27 +111,23 @@ def search_handling(
 
             with st.container():
                 st.markdown("**Directors:**")
-                num_authors = len(info["directors"])
-                for j in range(num_authors):
-                    st.text(info["directors"][j])
+                for director in info["directors"]:
+                    st.text(director)
 
             with st.container():
                 st.markdown("**Stars:**")
-                num_authors = len(info["stars"])
-                stars = "".join(star + ", " for star in info["stars"])
-                st.text(stars[:-2])
+                stars = ", ".join(info["stars"])
+                st.text(stars)
 
-                topic_card = st.columns(1)
-                with topic_card[0].container():
-                    st.write("Genres:")
-                    num_topics = len(info["genres"])
-                    for j in range(num_topics):
-                        st.markdown(
-                            f"<span style='color:{random.choice(list(color)).value}'>{info['genres'][j]}</span>",
-                            unsafe_allow_html=True,
-                        )
+                st.markdown("**Genres:**")
+                for genre in info["genres"].split():
+                    st.markdown(
+                        f"<span style='color:{random.choice(list(Color)).value}'>{genre}</span>",
+                        unsafe_allow_html=True,
+                    )
+
             with card[1].container():
-                st.image(info["Image_URL"], use_column_width=True)
+                st.image(get_movie_poster(info["id"]), use_column_width=True)
 
             st.divider()
         return
@@ -153,7 +153,6 @@ def search_handling(
             )
             if "search_results" in st.session_state:
                 st.session_state["search_results"] = result
-            print(f"Result: {result}")
             end_time = time.time()
             if len(result) == 0:
                 st.warning("No results found!")
@@ -165,7 +164,7 @@ def search_handling(
                 card = st.columns([3, 1])
                 info = utils.get_movie_by_id(result[i][0])
                 with card[0].container():
-                    st.title(info["title"])
+                    st.header(info["title"])
                     st.markdown(f"[Link to movie]({info['URL']})")
                     st.write(f"Relevance Score: {result[i][1]}")
                     st.markdown(
@@ -175,27 +174,23 @@ def search_handling(
 
             with st.container():
                 st.markdown("**Directors:**")
-                num_authors = len(info["directors"])
-                for j in range(num_authors):
-                    st.text(info["directors"][j])
+                for director in info["directors"]:
+                    st.text(director)
 
             with st.container():
                 st.markdown("**Stars:**")
-                num_authors = len(info["stars"])
-                stars = "".join(star + ", " for star in info["stars"])
-                st.text(stars[:-2])
+                stars = ", ".join(info["stars"])
+                st.text(stars)
 
-                topic_card = st.columns(1)
-                with topic_card[0].container():
-                    st.write("Genres:")
-                    num_topics = len(info["genres"])
-                    for j in range(num_topics):
-                        st.markdown(
-                            f"<span style='color:{random.choice(list(color)).value}'>{info['genres'][j]}</span>",
-                            unsafe_allow_html=True,
-                        )
+                st.markdown("**Genres:**")
+                for genre in info["genres"].split():
+                    st.markdown(
+                        f"<span style='color:{random.choice(list(Color)).value}'>{genre}</span>",
+                        unsafe_allow_html=True,
+                    )
+
             with card[1].container():
-                st.image(info["Image_URL"], use_column_width=True)
+                st.image(get_movie_poster(info["id"]), use_column_width=True)
 
             st.divider()
 
@@ -208,16 +203,13 @@ def search_handling(
 
 
 def main():
-    st.title("Search Engine")
-    st.write(
-        "This is a simple search engine for IMDB movies. You can search through IMDB dataset and find the most relevant movie to your search terms."
-    )
+    st.title("IMDB Movie Search Engine")
     st.markdown(
         '<span style="color:yellow">Developed By: MIR Team at Sharif University</span>',
         unsafe_allow_html=True,
     )
 
-    search_term = st.text_input("Seacrh Term")
+    search_term = st.text_input("Search Term")
     with st.expander("Advanced Search"):
         search_max_num = st.number_input(
             "Maximum number of results", min_value=5, max_value=100, value=10, step=5
